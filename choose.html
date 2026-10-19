@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>部署方式选型 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="部署方式选型">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>部署方式选型</h1>
+      <p class="lead">四种部署方式功能完全一致，区别只在「怎么装、怎么自启、怎么放行端口」。
+      与它们正交的另一个维度是<b>平台与 CPU 架构</b>（amd64 / arm64），选错架构文件会直接跑不起来，见
+      <a href="download.html">产物与架构</a>。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>方式</th><th>操作系统</th><th>可用架构</th><th>自启机制</th><th>适合谁</th></tr></thead>
+          <tbody>
+            <tr><td><a href="linux.html">🐧 Linux</a></td><td>全发行版（静态二进制，不看 glibc）</td><td>amd64 · arm64</td><td>systemd / OpenRC / nohup</td><td>生产服务器、主流选择</td></tr>
+            <tr><td><a href="windows.html">🖥 Windows</a></td><td>Win10/11 · Server 2016+<br>（旧系统见下载页）</td><td>仅 amd64</td><td>计划任务（SYSTEM）</td><td>内网 Windows 服务器</td></tr>
+            <tr><td><a href="macos.html">🍎 macOS</a></td><td>macOS 11+</td><td>amd64（Intel）· arm64（Apple）</td><td>launchd</td><td>开发机、办公 Mac</td></tr>
+            <tr><td><a href="docker.html">🐳 Docker</a></td><td>任何装了 Docker 的机器</td><td>随宿主机 amd64 / arm64</td><td>容器 restart 策略</td><td>想最快跑起来、面板环境</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>三句话决策</h2>
+      <ul class="steps">
+        <li><b>只是想尽快看到界面</b>选 Docker —— 两条命令就起来。</li>
+        <li><b>正式部署到 Linux 服务器</b>选 Linux 脚本 —— 它会自动识别发行版、架构、init 系统与防火墙。</li>
+        <li><b>单机 Windows / macOS</b>选对应目录 —— 脚本同样一键完成安装与自启。</li>
+      </ul>
+
+      <h2>平台 × 架构速查</h2>
+      <p>监控端与采集端各有 5 个平台组合，命名规则都是 <code>strix-&lt;角色&gt;-&lt;系统&gt;-&lt;架构&gt;[.exe]</code>：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>平台</th><th>amd64（x86_64）</th><th>arm64（aarch64）</th></tr></thead>
+          <tbody>
+            <tr><td>Linux</td><td>✅ <code>*-linux-amd64</code></td><td>✅ <code>*-linux-arm64</code><br><span style="color:#8b93a1">鲲鹏 / 飞腾 / 树莓派 64 位</span></td></tr>
+            <tr><td>macOS</td><td>✅ <code>*-darwin-amd64</code><br><span style="color:#8b93a1">Intel 芯片</span></td><td>✅ <code>*-darwin-arm64</code><br><span style="color:#8b93a1">Apple M 系列</span></td></tr>
+            <tr><td>Windows</td><td>✅ <code>*-windows-amd64.exe</code></td><td>❌ 未提供</td></tr>
+            <tr><td>Windows 旧系统</td><td>✅ 采集端 <code>…-win7.exe</code><br><span style="color:#8b93a1">Win7 / Server 2008 R2</span></td><td>❌ 未提供</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="t">只提供 64 位</span>
+        <p>没有 386 / armv7 产物。32 位系统（如 32 位 Raspberry Pi OS）会报 <code>Exec format error</code>，
+        需要换成 64 位系统。完整说明与自查命令见 <a href="download.html">产物与架构</a>。</p>
+      </div>
+
+      <div class="callout tip">
+        <span class="t">Linux 不用担心 glibc 版本</span>
+        <p>所有 Linux 产物都是纯静态链接（无 <code>PT_INTERP</code>、无 <code>DYNAMIC</code>），
+        Debian / Ubuntu / CentOS 7+ / RHEL / Rocky / Fedora / openEuler / 麒麟 / 统信 / Alpine 都能直接跑，
+        <b>不需要按发行版准备不同的文件</b>。</p>
+      </div>
+
+      <h2>部署前先确认三件事</h2>
+      <ol class="steps">
+        <li><b>主机能访问互联网吗？</b> 纯内网离线环境请在启动参数里加 <code>-hub=</code>，
+            完全断开授权中心，手工导入授权码即可（详见 <a href="troubleshoot.html">排障手册</a>）。</li>
+        <li><b>端口 9999 是否被占用 / 可放行？</b> 云服务器记得在<b>安全组</b>里放行。</li>
+        <li><b>二进制从哪来？</b> 在仓库的 <code>release/&lt;版本&gt;/</code> 下，形如
+            <code>strix-server-linux-amd64</code>；也能从发布页按平台下载，清单见
+            <a href="download.html">产物与架构</a>。</li>
+      </ol>
+
+      <div class="callout">
+        <span class="t">统一校验：启动日志会打印验签公钥指纹</span>
+        <p>部署完成后日志里应出现 <code>授权验签公钥指纹：278D-4852-7191-E7CE</code>。
+        不是这个值说明二进制不是当前版本（旧版内置过错误的公钥，会导致授权码全部校验失败）。</p>
+      </div>
+
+      <div class="pager">
+        <a href="index.html"><span class="lbl">上一页</span><b>← 项目概览</b></a>
+        <a class="next" href="linux.html"><span class="lbl">下一页</span><b>Linux 服务器 →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

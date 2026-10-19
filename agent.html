@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>接入采集端 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="接入采集端">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>📡 接入采集端（Agent）</h1>
+      <p class="lead">监控端（server）只负责展示与探测；真正的指标来自装在被监控主机上的采集端（agent）。
+      没有采集端，控制台就是空的。</p>
+
+      <div class="callout tip">
+        <span class="t">最快的方式：控制台一键下发</span>
+        <p>在控制台 <b>监控 → 添加主机</b> 页面选好系统、架构、主机名后，直接复制页面生成的命令到目标主机执行即可。
+        命令里已自动带上通信密钥与平台地址。</p>
+      </div>
+
+      <div class="callout tip">
+        <span class="t">主机名支持中文（1.1.5 起）</span>
+        <p>主机名可以用中文、日文等任意语言文字，例如 <code>name=数据库主库-01</code>。
+        1.1.5 之前「一键安装」会把非 ASCII 字符清洗成一串 <code>-</code>，升级到 1.1.5 即可。</p>
+        <p>名字已经录错了也不用重装：主机列表里每行有<b>重命名</b>（管理员）按钮，历史数据会一并迁移，
+        采集端继续用旧名上报也会被自动归到新名字下。</p>
+      </div>
+
+      <h2>方式一：一键安装（推荐）</h2>
+      <p>Linux / macOS，用 root 或 sudo 执行：</p>
+      <pre><code>curl -fsSL "http://&lt;服务器IP&gt;:9999/install.sh?wgToken=&lt;通信密钥MD5&gt;&amp;name=web-01" | sudo bash</code></pre>
+      <p>Windows，用<b>管理员</b> PowerShell：</p>
+      <pre><code>Invoke-Expression (Invoke-WebRequest -UseBasicParsing "http://&lt;服务器IP&gt;:9999/install.ps1?wgToken=&lt;通信密钥MD5&gt;&amp;name=win-01").Content</code></pre>
+      <p>脚本会自动完成：</p>
+      <ol class="steps">
+        <li>识别系统与架构</li>
+        <li>向监控端查询当前应下发的版本</li>
+        <li>下载二进制并<b>校验 SHA256</b></li>
+        <li>拉取平台下发的运行配置（密钥、上报间隔、服务端地址等）</li>
+        <li>注册开机自启：Linux 用 systemd、macOS 用 launchd、Windows 用计划任务</li>
+      </ol>
+
+      <h2>采集端产物清单（平台 × 架构）</h2>
+      <p>一键安装脚本会自动识别系统与架构去取文件；如果要手工拷贝，就按下表选：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>系统</th><th>架构</th><th>文件名</th><th>适用</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="2">Linux</td><td>amd64</td><td><code>strix-agent-linux-amd64</code></td><td>绝大多数服务器</td></tr>
+            <tr><td>arm64</td><td><code>strix-agent-linux-arm64</code></td><td>鲲鹏 / 飞腾 / 树莓派 64 位</td></tr>
+            <tr><td rowspan="2">macOS</td><td>amd64</td><td><code>strix-agent-darwin-amd64</code></td><td>Intel Mac</td></tr>
+            <tr><td>arm64</td><td><code>strix-agent-darwin-arm64</code></td><td>Apple M 系列</td></tr>
+            <tr><td rowspan="2">Windows</td><td>amd64</td><td><code>strix-agent-windows-amd64.exe</code></td><td>Win10/11、Server 2016+</td></tr>
+            <tr><td>amd64</td><td><code>strix-agent-windows-amd64-win7.exe</code></td><td>Win7 SP1 / Server 2008 R2（旧系统专用）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="t">旧系统专用版有两个强制要求</span>
+        <p>Win7 / Server 2008 R2 必须用 <code>-win7.exe</code>：普通版在这些系统上会<b>闪退且不写日志</b>。
+        另外启动参数一定要带 <code>-remote-config off -update off</code> —— 平台下发的升级策略是全局默认
+        <code>auto</code>，否则它会在 30 分钟内把自己换成普通版，然后接着闪退。</p>
+      </div>
+
+      <h2>方式二：手工运行采集端</h2>
+      <p>用于调试，或不想注册服务时。先用 <code>-version</code> 确认架构对不对，再前台跑一次：</p>
+      <pre><code># Linux（按 uname -m 选 amd64 或 arm64）
+./strix-agent-linux-amd64 -version
+./strix-agent-linux-amd64 -server http://10.0.0.5:9999 -token 你的通信密钥 -name web-01
+
+# macOS（Intel 用 darwin-amd64，Apple 芯片用 darwin-arm64）
+./strix-agent-darwin-arm64 -server http://10.0.0.5:9999 -token 你的通信密钥 -name mac-01
+
+# Windows（管理员 PowerShell）
+.\strix-agent-windows-amd64.exe -server http://10.0.0.5:9999 -token 你的通信密钥 -name win-01</code></pre>
+      <p>前台跑起来看到「上报成功」即说明打通；确认无误后再交给上面的脚本注册成服务。</p>
+
+      <h2>采集端参数</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>参数</th><th>环境变量</th><th>默认值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>-server</code></td><td><code>STRIX_SERVER</code></td><td><code>http://127.0.0.1:9999</code></td><td>服务端地址</td></tr>
+            <tr><td><code>-token</code></td><td><code>STRIX_TOKEN</code></td><td><code>strix</code></td><td>与服务端一致的通信密钥</td></tr>
+            <tr><td><code>-token-hash</code></td><td>—</td><td>空</td><td>通信密钥的 MD5，与 <code>-token</code> 二选一</td></tr>
+            <tr><td><code>-name</code></td><td><code>STRIX_HOSTNAME</code></td><td>本机主机名</td><td>平台显示名称</td></tr>
+            <tr><td><code>-interval</code></td><td><code>STRIX_INTERVAL</code></td><td><code>60</code></td><td>上报间隔（秒），平台下发时被覆盖</td></tr>
+            <tr><td><code>-update</code></td><td><code>STRIX_UPDATE</code></td><td><code>auto</code></td><td><code>auto</code> 自动升级 / <code>check</code> 只检查 / <code>off</code> 关闭</td></tr>
+            <tr><td><code>-remote-config</code></td><td><code>STRIX_REMOTE_CONFIG</code></td><td><code>auto</code></td><td><code>auto</code> 接受平台下发 / <code>off</code> 只用本地参数</td></tr>
+            <tr><td><code>-allow-command</code></td><td><code>STRIX_ALLOW_COMMAND</code></td><td><code>true</code></td><td>是否允许服务端向本采集端下发 shell 指令</td></tr>
+            <tr><td><code>-update-interval</code></td><td><code>STRIX_UPDATE_INTERVAL_MIN</code></td><td><code>30</code></td><td>采集端自检升级间隔（分钟）</td></tr>
+            <tr><td><code>-install-dir</code></td><td><code>STRIX_INSTALL_DIR</code></td><td>空</td><td>采集端安装目录</td></tr>
+            <tr><td><code>-version</code></td><td>—</td><td>—</td><td>打印版本号并退出</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <span class="t">关于「平台下发时被覆盖」</span>
+        <p>带此标记的参数只是本地兜底值。用 <code>-remote-config off</code> 可完全以本地参数为准。</p>
+      </div>
+
+      <h2>采集端能采集什么</h2>
+      <div class="grid c2">
+        <div class="card"><h3>核心指标</h3><p>CPU 使用率 / 温度、内存、磁盘容量与 IO、SMART、系统负载、MAC、TCP 连接数、网卡流量、硬件信息。</p></div>
+        <div class="card"><h3>资源监控</h3><p>进程存活、文件防篡改（SHA256 基线）、端口监听、日志关键字/正则、Nginx 日志统计、Docker 容器、数据库与接口探测。</p></div>
+      </div>
+      <div class="callout warn">
+        <span class="t">CPU 温度与 SMART 依赖物理硬件</span>
+        <p>虚拟机与云主机通常没有温度传感器，云盘也不暴露 SMART，此时这两项显示「未采集」，<b>不会</b>被判定为异常。</p>
+      </div>
+
+      <h2>常见排障</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td>控制台看不到主机</td><td>检查采集端 <code>-token</code> 与监控端 <code>STRIX_TOKEN</code> 是否一致；<code>-server</code> 地址是否可达；查看采集端日志有无「上报成功」</td></tr>
+            <tr><td>主机显示「离线」</td><td>默认超过 180 秒（<code>STRIX_OFFLINE_SEC</code>）未上报即判离线；确认采集端进程在跑、网络通畅</td></tr>
+            <tr><td>一键安装命令里的地址是内网 IP</td><td>监控端 <code>STRIX_PUBLIC_URL</code> 没设对外地址（反代场景必设）</td></tr>
+            <tr><td>一键安装失败</td><td>目标主机能否访问监控端 9999；<code>/install.sh</code> 的 <code>wgToken</code> 是否正确（它就是通信密钥的 MD5）</td></tr>
+            <tr><td>采集端版本不自动升级</td><td>远端已登记过同版本号的产物时，同号已部署主机不会触发升级 → 改内容必须改版本号</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <a href="docker.html"><span class="lbl">上一页</span><b>← Docker</b></a>
+        <a class="next" href="config.html"><span class="lbl">下一页</span><b>配置项清单 →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

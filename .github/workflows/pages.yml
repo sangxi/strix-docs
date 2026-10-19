@@ -1,0 +1,44 @@
+# 把这个静态站（本仓库根目录）发布到 GitHub Pages
+#
+# 启用方式：仓库 Settings → Pages → Build and deployment → Source 选 “GitHub Actions”
+# 本仓库根目录就是站点根（index.html 在根），因此 artifact 取 "."
+#
+# 若改用 “Deploy from a branch”，Source 选 main + /(root) 即可，不需要本文件。
+
+name: Deploy static site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

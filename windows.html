@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows 部署 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="Windows">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>🖥 Windows 部署</h1>
+      <p class="lead">支持 64 位 Windows 10 / 11、Windows Server 2016 及以上（工具链下限为 Windows 8 / Server 2012）。原生计划任务实现开机自启，无需 NSSM 等第三方工具。Windows 7 SP1 / Server 2008 R2 等旧系统的采集端方案见文末说明。</p>
+
+      <h2>架构：Windows 只有 amd64 一种</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>系统</th><th>产物</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>Win10 / 11、Server 2016+</td><td><code>strix-server-windows-amd64.exe</code><br><code>strix-agent-windows-amd64.exe</code></td><td>标准版，推荐</td></tr>
+            <tr><td>Win7 SP1 / Server 2008 R2</td><td>仅采集端：<code>strix-agent-windows-amd64-win7.exe</code></td><td>需额外启动参数，见文末</td></tr>
+            <tr><td>Windows on ARM</td><td>无原生产物</td><td>只能靠 x64 模拟层跑标准版，生产不建议</td></tr>
+            <tr><td>32 位 Windows</td><td>无产物</td><td>请换 64 位系统</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>确认方法：PowerShell 里执行 <code>$env:PROCESSOR_ARCHITECTURE</code>，返回 <code>AMD64</code> 即对应
+      <code>-amd64</code> 产物。</p>
+
+      <h2>快速开始</h2>
+      <p>在<b>管理员 PowerShell</b> 里执行（脚本会自己做提权检查，权限不足会直接拦住并提示）：</p>
+      <pre><code>cd C:\你的目录\deploy\windows
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # 仅本次会话放开脚本执行
+.\install.ps1</code></pre>
+      <p>脚本会自动：</p>
+      <ol class="steps">
+        <li>把 <code>strix-server.exe</code> 装到 <code>C:\Strix\</code>（自动从脚本上级目录找二进制）</li>
+        <li>生成 <code>C:\Strix\start-server.cmd</code>，把端口、密钥、账号写进去</li>
+        <li>注册<b>开机自启计划任务</b> <code>strix</code>（SYSTEM 权限、失败自动重启 3 次）</li>
+        <li>放行防火墙端口</li>
+        <li>打印<b>只显示一次</b>的控制台账号与通信密钥</li>
+      </ol>
+
+      <h2>常用参数</h2>
+      <pre><code>.\install.ps1 -Addr :8000                          # 换端口
+.\install.ps1 -Token '你的密钥' -AdminPass '你的密码'   # 指定密钥与密码
+.\install.ps1 -Prefix 'D:\Strix'              # 换安装目录
+.\install.ps1 -File D:\tmp\strix-server-windows-amd64.exe
+.\install.ps1 -NoFirewall                          # 不动防火墙
+.\install.ps1 -Uninstall                           # 卸载（保留数据）
+.\uninstall.ps1 -Purge                             # 卸载并删除数据</code></pre>
+
+      <h2>目录规划</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>路径</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>C:\Strix\strix-server.exe</code></td><td>主程序（自动更新会替换，旧版存为 <code>.bak</code>）</td></tr>
+            <tr><td><code>C:\Strix\start-server.cmd</code></td><td>启动脚本（配置在这里，权限受限）</td></tr>
+            <tr><td><code>C:\Strix\data\strix.db</code></td><td>SQLite 数据库（备份拷这个目录）</td></tr>
+            <tr><td><code>C:\Strix\logs\server.log</code></td><td>程序输出日志</td></tr>
+            <tr><td><code>C:\Strix\releases\</code></td><td>采集端发布物缓存</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>日常运维</h2>
+      <pre><code># 状态
+Get-ScheduledTask -TaskName strix | Select-Object State
+Get-Process strix-server -ErrorAction SilentlyContinue
+
+# 看日志（跟随输出）
+Get-Content C:\Strix\logs\server.log -Tail 40 -Wait
+
+# 重启
+Stop-ScheduledTask -TaskName strix; Start-ScheduledTask -TaskName strix
+
+# 开机自启开关
+Disable-ScheduledTask -TaskName strix
+Enable-ScheduledTask  -TaskName strix</code></pre>
+
+      <h2>手工部署（不用脚本）</h2>
+      <pre><code>New-Item -ItemType Directory -Force C:\Strix\data, C:\Strix\logs
+Copy-Item strix-server-windows-amd64.exe C:\Strix\strix-server.exe
+
+# 前台试跑，确认能起来（Ctrl+C 退出）
+C:\Strix\strix-server.exe -addr :9999 -db C:\Strix\data\strix.db -token 你的密钥
+
+# 注册开机自启
+$action  = New-ScheduledTaskAction -Execute 'C:\Strix\strix-server.exe' `
+  -Argument '-addr :9999 -db C:\Strix\data\strix.db -token 你的密钥' `
+  -WorkingDirectory 'C:\Strix'
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
+Register-ScheduledTask -TaskName strix -Action $action -Trigger $trigger -Principal $principal -Force
+
+# 放行防火墙
+New-NetFirewallRule -DisplayName 'Strix' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 9999</code></pre>
+
+      <h2>常见排障</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td>计划任务「已就绪」但没进程</td><td>看 <code>logs\server.log</code>；常见是端口被占或数据目录无权限</td></tr>
+            <tr><td>提示脚本被禁用</td><td>用 <code>Set-ExecutionPolicy -Scope Process Bypass</code>，或 <code>powershell -ExecutionPolicy Bypass -File .\install.ps1</code></td></tr>
+            <tr><td>本机能开、别的机器打不开</td><td>防火墙规则未生效，或安全组/上层设备未放行 9999</td></tr>
+            <tr><td>日志乱码</td><td><code>Get-Content -Encoding Default</code> 读取，或记事本打开</td></tr>
+            <tr><td>启动日志指纹不是 <code>278D-4852-7191-E7CE</code></td><td>二进制不是本版本产物</td></tr>
+            <tr><td>采集端连不上</td><td>检查 <code>-token</code> 是否与监控端 <code>STRIX_TOKEN</code> 一致，以及 9999 是否可达</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">Windows 7 SP1 / Server 2008 R2 等旧系统</span>
+        <p><b>监控端</b>：旧版系统缺少现代 PowerShell 命令（<code>Register-ScheduledTask</code> 等），
+           建议改用 Docker 或 Linux 方式部署。</p>
+        <p><b>采集端</b>：可用专用兼容产物 <code>strix-agent-windows-amd64-win7.exe</code>
+           （用 Go 1.20 单独构建，随 release 一并提供）。启动参数<b>必须</b>带
+           <code>-remote-config off -update off</code>，否则会在 30 分钟内被平台下发的更新策略
+           换成普通版而无法运行；开机自启用系统自带的 <code>schtasks.exe</code> 注册
+           （旧系统没有 <code>Register-ScheduledTask</code>）。</p>
+      </div>
+
+      <div class="pager">
+        <a href="linux.html"><span class="lbl">上一页</span><b>← Linux 服务器</b></a>
+        <a class="next" href="macos.html"><span class="lbl">下一页</span><b>macOS →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

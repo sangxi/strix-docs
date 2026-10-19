@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配置项清单 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="配置项清单">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>⚙️ 配置项清单</h1>
+      <p class="lead">每个参数都有「命令行 flag」与「环境变量」两种给法，二者等价。优先级：命令行 &gt; 环境变量 &gt; 默认值。</p>
+
+      <div class="callout danger">
+        <span class="t">重要：环境变量设空串等于没设</span>
+        <p>配置读取逻辑对<b>空字符串</b>会回落到默认值。所以 <code>STRIX_HUB=</code>（想关掉授权中心）是<b>无效</b>的，
+        必须用启动参数 <code>-hub=</code>。</p>
+      </div>
+
+      <h2>监控端 <code>strix-server</code></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>参数</th><th>环境变量</th><th>默认值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>-addr</code></td><td><code>STRIX_ADDR</code></td><td><code>:9999</code></td><td>HTTP 监听地址</td></tr>
+            <tr><td><code>-db</code></td><td><code>STRIX_DB</code></td><td><code>./data/strix.db</code></td><td>SQLite 文件路径（仅 SQLite，无 MySQL 后端）</td></tr>
+            <tr><td><code>-token</code></td><td><code>STRIX_TOKEN</code></td><td><code>strix</code></td><td>采集端通信密钥，两端必须一致</td></tr>
+            <tr><td><code>-user</code></td><td><code>STRIX_ADMIN_USER</code></td><td><code>admin</code></td><td>控制台账号（仅首次启动生效）</td></tr>
+            <tr><td><code>-pass</code></td><td><code>STRIX_ADMIN_PASS</code></td><td><code>strix</code></td><td>控制台密码（仅首次启动生效）</td></tr>
+            <tr><td><code>-retention</code></td><td><code>STRIX_RETENTION</code></td><td><code>30</code></td><td>历史数据保留天数，<code>0</code> 表示永久</td></tr>
+            <tr><td><code>-public-url</code></td><td><code>STRIX_PUBLIC_URL</code></td><td>自动反推</td><td>对外访问地址，<b>反向代理下务必显式指定</b></td></tr>
+            <tr><td><code>-offline</code></td><td><code>STRIX_OFFLINE_SEC</code></td><td><code>180</code></td><td>超过该秒数未上报判定离线</td></tr>
+            <tr><td><code>-cpu-alert</code></td><td><code>STRIX_CPU_ALERT</code></td><td><code>90</code></td><td>CPU 告警阈值（%）</td></tr>
+            <tr><td><code>-mem-alert</code></td><td><code>STRIX_MEM_ALERT</code></td><td><code>90</code></td><td>内存告警阈值（%）</td></tr>
+            <tr><td><code>-disk-alert</code></td><td><code>STRIX_DISK_ALERT</code></td><td><code>90</code></td><td>磁盘告警阈值（%）</td></tr>
+            <tr><td><code>-load-alert</code></td><td><code>STRIX_LOAD_ALERT</code></td><td><code>10</code></td><td>系统负载告警阈值</td></tr>
+            <tr><td><code>-alert-cooldown</code></td><td><code>STRIX_ALERT_COOLDOWN_MIN</code></td><td><code>10</code></td><td>同类告警去重冷却（分钟）</td></tr>
+            <tr><td><code>-read-conns</code></td><td><code>STRIX_READ_CONNS</code></td><td><code>8</code></td><td>SQLite 读连接池大小</td></tr>
+            <tr><td><code>-write-queue</code></td><td><code>STRIX_WRITE_QUEUE</code></td><td><code>8192</code></td><td>指标写入队列长度</td></tr>
+            <tr><td><code>-probe-workers</code></td><td><code>STRIX_PROBE_WORKERS</code></td><td><code>64</code></td><td>服务端探针并发Worker数</td></tr>
+            <tr><td><code>-purge</code></td><td><code>STRIX_PURGE_INTERVAL</code></td><td><code>3600</code></td><td>历史数据清理间隔（秒）</td></tr>
+            <tr><td><code>-login-alert</code></td><td><code>STRIX_LOGIN_ALERT</code></td><td><code>true</code></td><td>控制台登录失败是否发告警</td></tr>
+            <tr><td><code>-allow-command</code></td><td><code>STRIX_ALLOW_COMMAND</code></td><td><code>true</code></td><td>是否允许向采集端下发 shell 指令</td></tr>
+            <tr><td><code>-release-dir</code></td><td><code>STRIX_RELEASE_DIR</code></td><td>空</td><td>采集端发布物缓存目录（默认程序同目录 <code>releases/</code>）</td></tr>
+            <tr><td><code>-free-hosts</code></td><td><code>STRIX_FREE_HOSTS</code></td><td><code>10</code></td><td>免费版主机额度</td></tr>
+            <tr><td><code>-free-users</code></td><td><code>STRIX_FREE_USERS</code></td><td><code>3</code></td><td>免费版用户额度</td></tr>
+            <tr><td><code>-hub</code></td><td><code>STRIX_HUB</code></td><td>默认内置授权中心地址</td><td>授权/版本同步中心；<b>要完全离线请用 <code>-hub=</code></b>（默认地址已内置，无需手动填写）</td></tr>
+            <tr><td><code>-hub-token</code></td><td><code>STRIX_HUB_TOKEN</code></td><td>空</td><td>访问授权中心的 token（仅授权端侧需要）</td></tr>
+            <tr><td><code>-hub-interval</code></td><td><code>STRIX_HUB_INTERVAL_MIN</code></td><td><code>5</code></td><td>与授权中心同步间隔（分钟）</td></tr>
+            <tr><td><code>-hub-auto-update</code></td><td><code>STRIX_HUB_AUTO_UPDATE</code></td><td><code>download</code></td><td>平台自升级策略：<code>download</code> 自动下载并就位（就位后自动重启生效）/ <code>check</code> 只提示 / <code>off</code> 关闭</td></tr>
+            <tr><td><code>-hub-restart</code></td><td><code>STRIX_HUB_RESTART</code></td><td><code>auto</code></td><td>自升级后是否自动重启生效：<code>auto</code>（默认，自动重启）/ <code>off</code>（只替换文件不重启）</td></tr>
+            <tr><td><code>-hub-ua</code></td><td><code>STRIX_HUB_UA</code></td><td>空</td><td>访问授权中心时使用的 User-Agent</td></tr>
+            <tr><td><code>-license*</code></td><td><code>STRIX_LICENSE_*</code></td><td>空</td><td>授权相关配置（含兼容旧格式 HMAC 授权码的 <code>STRIX_LICENSE_SECRET</code>，对应 <code>WGC-</code>/<code>OPSM1-</code>/<code>OPSM-</code> 授权码）</td></tr>
+            <tr><td><code>-version</code></td><td>—</td><td>—</td><td>打印版本号并退出</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>采集端 <code>strix-agent</code></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>参数</th><th>环境变量</th><th>默认值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>-server</code></td><td><code>STRIX_SERVER</code></td><td><code>http://127.0.0.1:9999</code></td><td>服务端地址</td></tr>
+            <tr><td><code>-token</code></td><td><code>STRIX_TOKEN</code></td><td><code>strix</code></td><td>与服务端一致的通信密钥</td></tr>
+            <tr><td><code>-token-hash</code></td><td>—</td><td>空</td><td>通信密钥的 MD5，与 <code>-token</code> 二选一</td></tr>
+            <tr><td><code>-name</code></td><td><code>STRIX_HOSTNAME</code></td><td>本机主机名</td><td>平台显示名称</td></tr>
+            <tr><td><code>-interval</code></td><td><code>STRIX_INTERVAL</code></td><td><code>60</code></td><td>上报间隔（秒），平台下发时被覆盖</td></tr>
+            <tr><td><code>-update</code></td><td><code>STRIX_UPDATE</code></td><td><code>auto</code></td><td><code>auto</code> / <code>check</code> / <code>off</code></td></tr>
+            <tr><td><code>-remote-config</code></td><td><code>STRIX_REMOTE_CONFIG</code></td><td><code>auto</code></td><td><code>auto</code> 接受平台下发 / <code>off</code> 只用本地</td></tr>
+            <tr><td><code>-allow-command</code></td><td><code>STRIX_ALLOW_COMMAND</code></td><td><code>true</code></td><td>是否允许服务端向本采集端下发 shell 指令</td></tr>
+            <tr><td><code>-update-interval</code></td><td><code>STRIX_UPDATE_INTERVAL_MIN</code></td><td><code>30</code></td><td>采集端自检升级间隔（分钟）</td></tr>
+            <tr><td><code>-install-dir</code></td><td><code>STRIX_INSTALL_DIR</code></td><td>空</td><td>采集端安装目录</td></tr>
+            <tr><td><code>-version</code></td><td>—</td><td>—</td><td>打印版本号并退出</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Docker 相关（<code>.env</code>）</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>变量</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>STRIX_ADMIN_PASS</code> / <code>STRIX_TOKEN</code></td><td>控制台密码与通信密钥</td></tr>
+            <tr><td><code>STRIX_PUBLIC_URL</code></td><td>对外访问地址（含域名时必设）</td></tr>
+            <tr><td><code>STRIX_LICENSE_MACHINE</code></td><td>固定容器机器码，避免重建后授权失效</td></tr>
+            <tr><td><code>TZ</code></td><td>时区，建议 <code>Asia/Shanghai</code></td></tr>
+            <tr><td><code>VERSION</code></td><td>构建镜像时选用的 <code>release/&lt;版本&gt;/</code> 目录</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>给法示例</h2>
+      <pre><code># 命令行
+./strix-server -addr :9999 -db /opt/strix/data/strix.db \
+  -token 'my-secret' -public-url http://10.0.0.5:9999 -hub=
+
+# 环境变量（等价）
+export STRIX_ADDR=:9999
+export STRIX_DB=/opt/strix/data/strix.db
+export STRIX_TOKEN=my-secret
+export STRIX_PUBLIC_URL=http://10.0.0.5:9999
+./strix-server
+# 注意：离线要用 -hub=（不能靠 STRIX_HUB= 空串）</code></pre>
+
+      <div class="callout">
+        <span class="t">存储说明</span>
+        <p>监控端自身存储<b>只有 SQLite</b>（纯 Go 实现，无需 CGO）。<code>-db</code> 只能改 SQLite 文件路径，
+        不存在 MySQL 存储后端。工程里出现的 MySQL 驱动只服务于「数据库监控项」的探测目标。</p>
+      </div>
+
+      <div class="pager">
+        <a href="agent.html"><span class="lbl">上一页</span><b>← 接入采集端</b></a>
+        <a class="next" href="troubleshoot.html"><span class="lbl">下一页</span><b>排障手册 →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

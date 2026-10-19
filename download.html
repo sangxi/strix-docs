@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>产物与架构 · Strix 部署教程</title>
+<meta name="description" content="Strix 各平台、各 CPU 架构的产物清单与选型规则">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="产物与架构">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>🧱 产物与架构：先选对文件</h1>
+      <p class="lead">一个版本共 <b>11 个产物</b>：2 个角色 × 5 个平台组合，外加 1 个 Windows 旧系统兼容版。
+      选错架构不会「降级运行」，而是直接报 <code>Exec format error</code> / <code>Bad CPU type</code>，所以先花一分钟确认。</p>
+
+      <h2>命名规则</h2>
+      <pre><code>strix-&lt;角色&gt;-&lt;系统&gt;-&lt;架构&gt;[.exe]
+
+角色：server = 监控端（控制台 + API + 服务端探针）
+      agent  = 采集端（装在被监控主机上）
+系统：linux / darwin（macOS）/ windows
+架构：amd64（x86_64）/ arm64（aarch64）</code></pre>
+
+      <h2>完整产物清单</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>角色</th><th>系统</th><th>架构</th><th>文件名</th><th>典型机器</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="5">监控端<br><code>server</code></td><td>Linux</td><td>amd64</td><td><code>strix-server-linux-amd64</code></td><td>绝大多数云服务器 / 虚拟机</td></tr>
+            <tr><td>Linux</td><td>arm64</td><td><code>strix-server-linux-arm64</code></td><td>鲲鹏 / 飞腾 / 倚天 / 树莓派 64 位</td></tr>
+            <tr><td>macOS</td><td>amd64</td><td><code>strix-server-darwin-amd64</code></td><td>Intel 芯片 Mac</td></tr>
+            <tr><td>macOS</td><td>arm64</td><td><code>strix-server-darwin-arm64</code></td><td>Apple M1/M2/M3/M4</td></tr>
+            <tr><td>Windows</td><td>amd64</td><td><code>strix-server-windows-amd64.exe</code></td><td>Win10/11、Server 2016+</td></tr>
+            <tr><td rowspan="6">采集端<br><code>agent</code></td><td>Linux</td><td>amd64</td><td><code>strix-agent-linux-amd64</code></td><td>绝大多数云服务器 / 虚拟机</td></tr>
+            <tr><td>Linux</td><td>arm64</td><td><code>strix-agent-linux-arm64</code></td><td>鲲鹏 / 飞腾 / 树莓派 64 位</td></tr>
+            <tr><td>macOS</td><td>amd64</td><td><code>strix-agent-darwin-amd64</code></td><td>Intel 芯片 Mac</td></tr>
+            <tr><td>macOS</td><td>arm64</td><td><code>strix-agent-darwin-arm64</code></td><td>Apple M 系列</td></tr>
+            <tr><td>Windows</td><td>amd64</td><td><code>strix-agent-windows-amd64.exe</code></td><td>Win10/11、Server 2016+</td></tr>
+            <tr><td>Windows</td><td>amd64<br><span style="color:#d97706">（旧系统版）</span></td><td><code>strix-agent-windows-amd64-win7.exe</code></td><td>Win7 / Server 2008 R2</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout tip">
+        <span class="t">监控端和采集端是两个不同的程序</span>
+        <p>同一台机器可以既跑监控端又跑采集端，但<b>两个文件都要</b>。只装 <code>server</code> 不会产生任何被监控主机的指标，
+        只装 <code>agent</code> 则没有控制台可看。首次部署最少需要：一台机器跑 <code>server</code> + 每台被监控机跑 <code>agent</code>。</p>
+      </div>
+
+      <h2>怎么确认自己的架构</h2>
+      <div class="grid c3">
+        <div class="card rainbow" style="--tc:#17a673">
+          <div class="c-ico">🐧</div>
+          <h3>Linux</h3>
+          <pre style="margin:8px 0 0"><code>uname -m
+# x86_64        -> amd64
+# aarch64/arm64 -> arm64</code></pre>
+          </div>
+        <div class="card rainbow" style="--tc:#8b5cf6">
+          <div class="c-ico">🍎</div>
+          <h3>macOS</h3>
+          <pre style="margin:8px 0 0"><code>uname -m
+# x86_64 -> amd64
+# arm64  -> arm64</code></pre>
+        </div>
+        <div class="card rainbow" style="--tc:#2f6fed">
+          <div class="c-ico">🖥</div>
+          <h3>Windows</h3>
+          <pre style="margin:8px 0 0"><code>$env:PROCESSOR_ARCHITECTURE
+# AMD64 -> amd64</code></pre>
+        </div>
+      </div>
+      <p>Debian / Ubuntu 系还可以用 <code>dpkg --print-architecture</code>，它直接输出 <code>amd64</code> 或 <code>arm64</code>，
+      和产物命名完全一致，不容易看错。macOS 也可以用 <code>sysctl -n machdep.cpu.brand_string</code> 看是不是 Apple 芯片。</p>
+
+      <h2>五个最常见的选错场景</h2>
+      <ol class="steps">
+        <li><b>32 位系统。</b>本项目<b>只提供 64 位产物</b>。树莓派装的是 32 位 Raspberry Pi OS（<code>armv7l</code>）时会报
+            <code>Exec format error</code>，请换 64 位系统（<code>aarch64</code>），而不是找 <code>arm</code> 版本 —— 没有这个版本。</li>
+        <li><b>Windows 只有 amd64。</b>没有 <code>arm64</code> 与 <code>386</code> 产物。Windows on ARM 需要走 x64 模拟层运行，
+            生产环境不建议。</li>
+        <li><b>Win7 / Server 2008 R2 用了普通版。</b>会<b>闪退且不留日志</b>。必须用 <code>-win7.exe</code> 兼容版，
+            并且启动参数要带 <code>-remote-config off -update off</code>，否则平台下发的自动升级会在 30 分钟内把它换回普通版，接着闪退。</li>
+        <li><b>Intel Mac 装了 arm64。</b>Apple Silicon 机器跑 amd64 有 Rosetta 2 兜底（能跑），反过来 Intel 机器跑 arm64
+            <b>完全跑不起来</b>，会提示 <code>Bad CPU type in executable</code>。</li>
+        <li><b>看发行版选文件。</b>Linux 产物是<b>纯静态链接</b>的，不看发行版、不看 glibc 版本 —— Debian、CentOS 7、
+            Rocky、openEuler、麒麟、统信、Alpine（musl）都用同一个文件。只有架构这一个维度。</li>
+      </ol>
+
+      <h2>拿到文件后先做两件事</h2>
+      <pre><code># 1) 校验完整性（同一目录下需要有 SHA256SUMS.txt）
+sha256sum -c SHA256SUMS.txt
+
+# 2) 确认版本与架构自报正确（不启动服务，只打印信息）
+chmod +x strix-server-linux-amd64
+./strix-server-linux-amd64 -version
+# strix-server 1.2.2 (linux/amd64) 构建于 2026-10-18T11:34:27</code></pre>
+      <div class="callout warn">
+        <span class="t">-version 自报的架构要和文件名一致</span>
+        <p>不一致说明文件被改名错了（有人把 arm64 的文件改成 amd64 名字），装上去只会得到一个
+        <code>Exec format error</code>。发布包里的 <code>SHA256SUMS.txt</code> 与 <code>RELEASE-MANIFEST.md</code>
+        会列出全部产物，可以对着核。</p>
+      </div>
+
+      <div class="pager">
+        <a href="choose.html"><span class="lbl">上一页</span><b>← 部署方式选型</b></a>
+        <a class="next" href="agent.html"><span class="lbl">下一页</span><b>接入采集端 →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docker 部署 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="Docker">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>🐳 Docker 部署</h1>
+      <p class="lead">最快的上手方式：两条命令起来，适合 1Panel / 宝塔面板环境，也适合本地试用。
+      镜像的 CPU 架构<b>跟随宿主机</b>，amd64 与 arm64 都支持。</p>
+
+      <h2>快速开始</h2>
+      <pre><code>cd deploy/docker
+cp .env.example .env
+vi .env                     # 改 STRIX_ADMIN_PASS、STRIX_TOKEN、STRIX_PUBLIC_URL
+docker compose up -d
+docker compose logs -f</code></pre>
+      <p>打开 <code>http://宿主机IP:9999</code>，用 <code>.env</code> 里的账号登录。
+      数据落在宿主机 <code>deploy/docker/data/</code>，采集端发布物落在 <code>releases/</code>。</p>
+
+      <h2>架构：镜像跟着宿主机走</h2>
+      <p>本项目只发布 <b>amd64 / arm64</b> 两种 Linux 产物，镜像构建时按目标架构挑文件：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>宿主机</th><th>镜像架构</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>x86_64 服务器 / Intel Mac</td><td>linux/amd64</td><td>默认路径，直接可用</td></tr>
+            <tr><td>鲲鹏 / 飞腾 / 倚天、Apple 芯片 Mac</td><td>linux/arm64</td><td>BuildKit 自动传 <code>TARGETARCH=arm64</code>，取 <code>release/&lt;版本&gt;/strix-server-linux-arm64</code></td></tr>
+            <tr><td>32 位 ARM（armv7l）</td><td>—</td><td>无产物，请换 64 位系统</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code># 手里这个 docker 是什么架构？
+docker version --format '{{.Server.Arch}}'        # 输出 amd64 或 arm64
+docker buildx version                             # 有输出说明 BuildKit/buildx 可用，能自动选架构</code></pre>
+      <div class="callout warn">
+        <span class="t">老 docker（没有 BuildKit）</span>
+        <p>不会传 <code>TARGETARCH</code>，Dockerfile 里会退回默认值 <code>amd64</code>。
+        这类环境在 arm64 机器上要显式指定（命令在 <code>deploy/docker</code> 里执行，上下文是仓库根 <code>..</code>）：</p>
+        <pre><code>docker build -f Dockerfile.binary \
+  --build-arg VERSION=1.2.2 --build-arg TARGETARCH=arm64 \
+  -t strix/strix-server:1.2.2 ..
+# 或者直接用源码构建（按构建机架构出镜像）：
+docker build -f Dockerfile --build-arg VERSION=1.2.2 -t strix/strix-server:1.2.2 ..</code></pre>
+      </div>
+      <p>想在 Intel 上构建一个 arm64 镜像（拿到 ARM 服务器上跑），用 buildx 交叉构建：</p>
+      <pre><code>docker buildx build --platform linux/arm64 \
+  -f deploy/docker/Dockerfile.binary --build-arg VERSION=1.2.2 \
+  -t strix/strix-server:1.2.2 --load .</code></pre>
+
+      <h2>两种构建方式</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>方式</th><th>Dockerfile</th><th>特点</th></tr></thead>
+          <tbody>
+            <tr><td>用现成二进制</td><td><code>Dockerfile.binary</code></td><td>不用 Go 环境、不用联网拉模块，几十秒出镜像。依赖仓库里已有 <code>release/1.2.2/strix-server-linux-amd64</code>（或 <code>-arm64</code>）</td></tr>
+            <tr><td>从源码构建</td><td><code>Dockerfile</code></td><td>适合 GitHub 用户 / CI，需要能拉取 Go 模块；产物是<b>构建机架构</b>的原生镜像</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <span class="t">构建上下文必须是仓库根目录</span>
+        <p>compose 里已配好 <code>context: ../..</code>，因为 <code>Dockerfile.binary</code> 需要读取
+        <code>release/&lt;版本&gt;/</code> 下的二进制。若手动构建，务必用仓库根目录作上下文。</p>
+      </div>
+
+      <h2>⚠️ 最容易踩的坑：机器码会变，授权会失效</h2>
+      <div class="callout danger">
+        <span class="t">容器重建后机器码会跟着变</span>
+        <p>监控端的授权绑定<b>机器码</b>，而容器重建后主机名、网卡信息都会变，机器码跟着变 → 授权判定失效。</p>
+      </div>
+      <p><b>正确做法：</b></p>
+      <ol class="steps">
+        <li>先起一次容器；</li>
+        <li>打开控制台「系统 → 授权购买」，复制页面显示的<b>本机机器码</b>（形如 <code>C317-6E8B-BAE5-A8A6</code>）；</li>
+        <li>把它填到 <code>.env</code> 的 <code>STRIX_LICENSE_MACHINE=</code>；</li>
+        <li><code>docker compose up -d</code> 重建。</li>
+      </ol>
+      <p>之后无论容器怎么重建，机器码都是固定的，授权不会掉。</p>
+
+      <h2>目录与数据</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>位置</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>./data/</code></td><td>SQLite 数据库（挂到容器 <code>/data</code>，文件名 <code>strix.db</code>）</td></tr>
+            <tr><td><code>./releases/</code></td><td>从授权系统代拉的采集端发布物（挂到 <code>/releases</code>）</td></tr>
+            <tr><td>容器 <code>/opt/strix</code></td><td>工作目录</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>数据都在宿主机 <code>./data/</code>，<code>docker compose down</code> 不会丢。备份直接打包这个目录即可。</p>
+
+      <h2>采集端如何接入</h2>
+      <p>采集端要能访问到<b>宿主机的 9999</b>（不是容器 IP）：</p>
+      <pre><code># 方式一：采集端装在宿主机 / 其它机器上，直接指宿主机地址
+./strix-agent-linux-amd64 -server http://10.0.0.5:9999 -token 与 STRIX_TOKEN 一致 -name web-01
+
+# 方式二：控制台「监控 → 添加主机」复制一键安装命令，命令里自动带上平台地址</code></pre>
+      <div class="callout tip">
+        <span class="t">采集端发布物从哪来</span>
+        <p>平台会把授权系统上登记的采集端发布物<b>代拉</b>到 <code>./releases/</code> 再分发给内网主机。
+        首次需要容器能出网；完全离线时，手工把 <code>strix-agent-*</code> 放进 <code>./releases/</code>，
+        或在控制台「在线升级」页面上传登记。</p>
+      </div>
+
+      <h2>反向代理（可选，推荐生产用）</h2>
+      <pre><code>server {
+    listen 80;
+    server_name monitor.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:9999;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;   # 探测任务与升级下载可能较慢
+        client_max_body_size 200m; # 上传采集端发布物
+    }
+}</code></pre>
+      <div class="callout warn">
+        <span class="t">挂了域名 HTTPS 之后</span>
+        <p>记得把 <code>.env</code> 的 <code>STRIX_PUBLIC_URL</code> 改成对外地址（例如
+        <code>https://monitor.example.com</code>），否则「一键安装采集端」生成的命令会指到内网 IP。</p>
+      </div>
+
+      <h2>常用命令</h2>
+      <pre><code>docker compose ps                      # 状态
+docker compose logs -f --tail=100      # 日志
+docker compose restart                 # 重启
+docker compose down                    # 停止（保留数据）
+docker compose up -d --build           # 改完 .env 后重建
+docker compose exec strix-server /usr/local/bin/strix-server -version   # 容器内版本与架构
+docker compose exec strix-server wget -qO- http://127.0.0.1:9999/api/health   # 容器内健康检查</code></pre>
+
+      <h2>常见排障</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td>找不到 <code>release/1.2.2/...</code></td><td>构建上下文不对，必须在仓库根目录执行，或 <code>docker compose -f deploy/docker/docker-compose.yml --project-directory . build</code>；也可能是该版本还没生成 <code>release/1.2.2/</code>（<code>ls release/</code> 确认）</td></tr>
+            <tr><td><code>exec format error</code> / 容器反复重启</td><td>镜像架构与宿主机不一致。arm64 机器上要确保 <code>TARGETARCH=arm64</code>，或改用源码构建</td></tr>
+            <tr><td>架构对但特别慢</td><td>很可能在 QEMU 模拟下跑（amd64 镜像跑在 arm64 宿主）。用上面的 <code>-version</code> 命令看括号里的架构是否为宿主架构</td></tr>
+            <tr><td>容器起来就退出</td><td><code>docker compose logs</code> 看日志；常见是 <code>/data</code> 挂载点权限或端口占用</td></tr>
+            <tr><td>页面能开、别的机器打不开</td><td>宿主机防火墙 / 云安全组没放行 9999</td></tr>
+            <tr><td>授权显示社区版且「等待签发」</td><td>确认 <code>STRIX_LICENSE_MACHINE</code> 与授权中心绑定的机器码一致；再点「立即从授权系统拉取授权」</td></tr>
+            <tr><td>容器内访问授权中心超时</td><td>容器需出网访问默认授权中心（地址已内置在程序里，无需手动填写）；内网离线请用 <code>-hub=</code> 完全离线并手工导入授权码</td></tr>
+            <tr><td>时间差 8 小时</td><td>确认 <code>TZ=Asia/Shanghai</code> 已传入，且宿主机时间正确</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <a href="macos.html"><span class="lbl">上一页</span><b>← macOS</b></a>
+        <a class="next" href="config.html"><span class="lbl">下一页</span><b>配置项清单 →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux 服务器部署 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="Linux 服务器">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>🐧 Linux 服务器部署</h1>
+      <p class="lead">一句话结论：主流发行版<b>全都兼容</b>，一个脚本自适应发行版、架构、init 系统与防火墙。</p>
+
+      <div class="callout tip">
+        <span class="t">为什么不用按发行版准备不同文件？</span>
+        <p>本程序是 <code>CGO_ENABLED=0</code> 编译的纯静态链接 Go 二进制。实测校验：</p>
+        <pre><code>program headers: LOAD / NOTE / PHDR / GNU_STACK   &lt;- 没有 PT_INTERP、没有 DYNAMIC
+PT_INTERP 存在? False
+引用 ld-linux? 0    引用 libc.so? 0    引用 ld-musl? 0</code></pre>
+        <p>即不依赖 glibc 版本、不依赖任何系统库。唯一因发行版而异的，是「怎么注册成开机自启服务」「怎么放行端口」，这两件事脚本已自动适配。</p>
+      </div>
+
+      <h2>发行版兼容矩阵</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>发行版</th><th>版本</th><th>架构</th><th>支持</th></tr></thead>
+          <tbody>
+            <tr><td>Debian</td><td>10 / 11 / 12+</td><td>amd64 / arm64</td><td>✅</td></tr>
+            <tr><td>Ubuntu</td><td>18.04 / 20.04 / 22.04 / 24.04</td><td>amd64 / arm64</td><td>✅</td></tr>
+            <tr><td>CentOS</td><td>7 / 8 / Stream</td><td>amd64 / arm64</td><td>✅（CentOS 7 的 glibc 2.17 也没问题）</td></tr>
+            <tr><td>RHEL / Rocky / AlmaLinux</td><td>7 / 8 / 9</td><td>amd64 / arm64</td><td>✅</td></tr>
+            <tr><td>Fedora</td><td>最新</td><td>amd64 / arm64</td><td>✅</td></tr>
+            <tr><td>openEuler 欧拉</td><td>20.03 / 22.03</td><td>amd64 / aarch64</td><td>✅</td></tr>
+            <tr><td>麒麟 Kylin / 统信 UOS</td><td>V10 / 20</td><td>amd64 / arm64</td><td>✅</td></tr>
+            <tr><td>Alpine</td><td>3.x</td><td>amd64 / arm64</td><td>✅（musl 也不依赖）</td></tr>
+            <tr><td>SUSE / openSUSE</td><td>15+</td><td>amd64 / arm64</td><td>✅</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>脚本对「服务注册 / 端口放行」的适配</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>发行版</th><th>init 系统</th><th>端口放行</th><th>脚本行为</th></tr></thead>
+          <tbody>
+            <tr><td>Debian / Ubuntu / UOS / Kylin</td><td>systemd</td><td>ufw</td><td>装 systemd 单元 + <code>ufw allow</code></td></tr>
+            <tr><td>CentOS / RHEL / Rocky / Alma / openEuler</td><td>systemd</td><td>firewalld</td><td>装 systemd 单元 + <code>firewall-cmd</code>；SELinux Enforcing 会 <code>restorecon</code></td></tr>
+            <tr><td>Alpine</td><td>OpenRC</td><td>无</td><td>生成 <code>/etc/init.d/strix</code> + <code>rc-update</code></td></tr>
+            <tr><td>极小化容器镜像</td><td>都没有</td><td>无</td><td>回退 <code>nohup</code> 常驻（提示重启不自启）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>架构（amd64 / arm64）怎么选</h2>
+      <p>Linux 只有两个产物，按 <code>uname -m</code> 选：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th><code>uname -m</code></th><th>选这个文件</th><th>常见机器</th></tr></thead>
+          <tbody>
+            <tr><td><code>x86_64</code></td><td><code>strix-server-linux-amd64</code></td><td>Intel / AMD 服务器、绝大多数云主机</td></tr>
+            <tr><td><code>aarch64</code>（也写作 arm64）</td><td><code>strix-server-linux-arm64</code></td><td>鲲鹏 920、飞腾、倚天 710、树莓派 64 位系统</td></tr>
+            <tr><td><code>armv7l</code> / <code>i686</code></td><td><b>没有对应产物</b></td><td>32 位系统：请改装 64 位系统</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="t">armv7l 不是 arm64</span>
+        <p><code>armv7l</code> 是 32 位的 ARM（常见于 32 位 Raspberry Pi OS、部分国产瘦客户端），
+        <code>arm64</code> 产物在它上面会报 <code>Exec format error</code>。本项目只发布 64 位产物，
+        这种情况请直接重装 64 位系统，不要尝试找 <code>arm</code> 版本。</p>
+      </div>
+
+      <h2>快速开始</h2>
+      <p>把二进制和 <code>deploy/linux</code> 目录一起传到服务器，然后执行安装脚本：</p>
+      <pre><code># 0) 先确认架构，别下错文件
+uname -m          # x86_64 -> amd64 ; aarch64 -> arm64
+
+# 1) 上传（在本地执行，按上一步的结果选文件）
+scp -r deploy/linux strix-server-linux-amd64 root@10.0.0.5:/root/
+
+# 2) 在服务器上执行
+cd /root &amp;&amp; chmod +x linux/install.sh
+sudo ./linux/install.sh</code></pre>
+      <p>脚本会自动完成：探测架构 → 校验传入的二进制确实是 <b>Linux ELF</b>（防止误拷了 Windows/macOS 产物）→
+      建低权限用户 <code>strix</code> → 装到 <code>/opt/strix/strix-server</code> →
+      生成 <code>/etc/strix/strix.env</code> → 注册开机自启 → 放行端口 →
+      打印<b>只显示一次</b>的控制台账号与通信密钥。版本号以二进制自报的 <code>-version</code> 为准，不写死在脚本里。</p>
+      <div class="callout">
+        <span class="t">装之前先自测一下</span>
+        <p>脚本只能判断「是不是 Linux 二进制」，判断不了「是不是当前 CPU 的架构」。装之前先跑一次：</p>
+        <pre><code>./strix-server-linux-amd64 -version
+# strix-server 1.2.2 (linux/amd64) 构建于 …   &lt;- 括号里的架构要和 uname -m 对得上
+# bash: ./strix-server-linux-arm64: cannot execute binary file: Exec format error  &lt;- 架构错了</code></pre>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">记下账号密码</span>
+        <p>控制台账号与通信密钥只在安装结束时打印一次。没记下也没关系：账号密码在
+        <code>/etc/strix/strix.env</code>，通信密钥可用 <code>--token</code> 重设。</p>
+      </div>
+
+      <h2>常用参数</h2>
+      <pre><code>sudo ./install.sh --addr :8000                    # 换监听端口
+sudo ./install.sh --token '你的通信密钥'            # 指定采集端要用的密钥
+sudo ./install.sh --admin-pass '你的控制台密码'      # 指定控制台密码（否则随机生成）
+sudo ./install.sh --public-url http://10.0.0.5:9999
+sudo ./install.sh --no-firewall                   # 不动防火墙（自己管理）
+sudo ./install.sh -f /tmp/strix-server-linux-arm64     # 指定二进制
+sudo ./install.sh -u https://example.com/strix-server-linux-amd64   # 在线拉取
+sudo ./install.sh --uninstall                     # 卸载（保留数据与配置）</code></pre>
+      <p>参数也可用环境变量：<code>STRIX_VERSION</code> / <code>STRIX_PREFIX</code>。</p>
+
+      <h2>目录规划</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>路径</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>/opt/strix/strix-server</code></td><td>主程序（自动更新会替换它，旧版存为 <code>.bak</code>）</td></tr>
+            <tr><td><code>/opt/strix/data/strix.db</code></td><td>SQLite 数据库（WAL 模式，备份拷这个目录即可）</td></tr>
+            <tr><td><code>/opt/strix/releases/</code></td><td>采集端发布物缓存（内网主机从这里升级）</td></tr>
+            <tr><td><code>/etc/strix/strix.env</code></td><td>配置（权限 600，密码/密钥都在这里）</td></tr>
+            <tr><td><code>/etc/systemd/system/strix.service</code></td><td>systemd 单元</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>日常运维</h2>
+      <pre><code>systemctl status strix --no-pager         # 状态
+systemctl restart strix                   # 重启
+systemctl disable --now strix             # 停止并取消开机自启
+journalctl -u strix -f --no-pager         # 跟随日志
+curl -s http://127.0.0.1:9999/api/health       # 健康检查</code></pre>
+
+      <h2>手工部署（不想用脚本时）</h2>
+      <pre><code>sudo useradd -r -s /sbin/nologin strix
+sudo mkdir -p /opt/strix/{data,releases} /etc/strix
+sudo install -m0755 strix-server-linux-amd64 /opt/strix/strix-server
+
+sudo cp strix.env.example /etc/strix/strix.env
+sudo vi /etc/strix/strix.env      # 至少改 STRIX_TOKEN 与 STRIX_ADMIN_PASS
+sudo chmod 600 /etc/strix/strix.env
+
+sudo cp strix.service /etc/systemd/system/
+sudo chown -R strix:strix /opt/strix
+sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now strix
+sudo systemctl status strix --no-pager</code></pre>
+
+      <h2>升级与自重启</h2>
+      <p>1.1.3 起，控制台「在线升级」换完二进制会<b>自动重启生效</b>，不再需要人工 <code>systemctl restart</code>：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>启动方式</th><th>自重启机制</th></tr></thead>
+          <tbody>
+            <tr><td>systemd（unit <code>Restart=always</code>、<code>RestartSec=5</code>）</td><td>进程退出，systemd 用新版本拉起</td></tr>
+            <tr><td>Docker Compose（<code>restart: unless-stopped</code>）</td><td>容器 PID 1 退出，compose 重启容器</td></tr>
+            <tr><td>手工 <code>nohup</code></td><td>自行拉起同参数新进程后退出（端口被占用会自动重试，最多 20 秒）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <span class="t">用 <code>-hub-restart</code> 控制是否自动重启</span>
+        <p><code>auto</code>（默认，自动重启生效）/ <code>off</code>（只替换文件不重启，需自己重启）。
+        新版本启动失败会自动回滚到 <code>.bak</code>。</p>
+      </div>
+
+      <h3>手工替换二进制升级（务必按序）</h3>
+      <ol class="steps">
+        <li>备份旧二进制：<code>cp /opt/strix/strix-server /opt/strix/strix-server.bak-$(date +%F)</code></li>
+        <li><b>删除待生效标记</b>：<code>rm -f /opt/strix/.strix-server.pending</code>（不清掉的话启动时会认为上次升级未生效而回滚到 <code>.bak</code>）</li>
+        <li>替换二进制并赋可执行：<code>install -m0755 新二进制 /opt/strix/strix-server</code></li>
+        <li>重启：<code>systemctl restart strix</code></li>
+        <li>校验：<code>/opt/strix/strix-server -version</code></li>
+      </ol>
+
+      <h2>常见排障</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
+          <tbody>
+            <tr><td><code>journalctl</code> 里 <code>avc: denied</code></td><td>SELinux：<code>semanage fcontext -a -t bin_t '/opt/strix(/.*)?' &amp;&amp; restorecon -R /opt/strix</code> 后重启</td></tr>
+            <tr><td><code>permission denied</code> 启动失败</td><td>属主不对：<code>chown -R strix:strix /opt/strix</code></td></tr>
+            <tr><td>本机能开、外面打不开</td><td>firewalld/ufw 未放行，或云服务器<b>安全组</b>未放行 9999</td></tr>
+            <tr><td><code>address already in use</code></td><td><code>ss -tlnp | grep 9999</code> 找占用进程，或换 <code>--addr :8000</code></td></tr>
+            <tr><td>日志报「打开数据库失败」</td><td><code>STRIX_DB</code> 指向的目录不存在或无写权限</td></tr>
+            <tr><td>CentOS 7 systemd 报 <code>Unknown lvalue LimitNOFILE</code></td><td>老 systemd 语法差异，删掉该行即可（非必需）</td></tr>
+            <tr><td>想完全离线</td><td><code>ExecStart</code> 加 <code>-hub=</code>。<b>不能</b>用 <code>STRIX_HUB=</code>（空串会回落默认地址）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <span class="t">下一步</span>
+        <p>监控端跑起来后，去控制台「监控 → 添加主机」复制一键安装命令，到目标主机执行即可接入采集端。
+        详见 <a href="agent.html">接入采集端</a>。</p>
+      </div>
+
+      <div class="pager">
+        <a href="choose.html"><span class="lbl">上一页</span><b>← 部署方式选型</b></a>
+        <a class="next" href="windows.html"><span class="lbl">下一页</span><b>Windows →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

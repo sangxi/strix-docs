@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>发布与托管 · Strix 部署教程</title>
+<meta name="description" content="把 Strix 部署教程这个静态站发布到 Cloudflare Pages 或 GitHub Pages 的完整操作">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="发布与托管">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>📤 发布与托管</h1>
+      <p class="lead">这一页讲的是<b>本站自己</b>怎么上线，不是 Strix 怎么装。
+      站点是纯静态的（一堆 <code>.html</code> + <code>assets/</code>），没有构建步骤，
+      所以两条路都能走：<b>Cloudflare Pages</b> 和 <b>GitHub Pages</b>。两条路可以同时开，互不影响。</p>
+
+      <div class="callout tip">
+        <span class="t">先记住一件事</span>
+        <p>本站所有链接、脚本、图片<b>全部使用相对路径</b>（<code>assets/style.css</code>、<code>linux.html</code>），
+        没有一处以 <code>/</code> 开头的绝对路径。所以放在任何子目录下（比如
+        <code>https://user.github.io/strix-docs/</code>）都能正常工作，不用改任何文件。</p>
+      </div>
+
+      <h2>两条路线怎么选</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>维度</th><th>Cloudflare Pages</th><th>GitHub Pages</th></tr></thead>
+          <tbody>
+            <tr><td>当前地址</td><td><code>https://opsmonitor-docs.pages.dev</code></td><td>需先建仓库，地址为 <code>https://&lt;用户&gt;.github.io/&lt;仓库&gt;/</code></td></tr>
+            <tr><td>发布方式</td><td>本地一条 <code>wrangler</code> 命令（推）</td><td>push 到 <code>main</code> 后由 Actions 自动跑（拉）</td></tr>
+            <tr><td>要不要 git</td><td>不需要</td><td>必须，且要推到 GitHub</td></tr>
+            <tr><td>要不要账号</td><td>Cloudflare 账号 + 一次浏览器授权</td><td>已有 GitHub 账号即可</td></tr>
+            <tr><td>国内访问</td><td>较快，有全球 CDN</td><td>时快时慢</td></tr>
+            <tr><td>适合</td><td>对外给客户看的正式地址</td><td>版本留档、多人协作改文档</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>发布前：先本地看一眼</h2>
+      <p>别把没验证过的页面直接推上线。站点目录里任意起一个静态服务即可，<b>不要</b>用
+      <code>file://</code> 双击打开 —— 那样 <code>fetch</code> 和部分相对路径行为会不一样。</p>
+      <pre><code>cd D:\c\opsmonitor-web
+
+# Python 3
+python -m http.server 18080 --bind 127.0.0.1
+
+# 或 Node
+npx --yes serve -l 18080 .
+
+# 然后浏览器打开
+# http://127.0.0.1:18080/index.html</code></pre>
+      <div class="callout warn">
+        <span class="t">Windows 上端口被占</span>
+        <p>报 <code>WinError 10013</code> 不是权限问题就是端口被 Hyper-V / 保留端口段占了，
+        换个端口（18080、18888）即可，别去改防火墙。</p>
+      </div>
+
+      <h2>路线一：Cloudflare Pages</h2>
+
+      <h3>1. 准备 Node 环境</h3>
+      <p><code>wrangler</code> 是 Cloudflare 官方 CLI，走 <code>npx</code> 调用就不必全局安装：</p>
+      <pre><code>node -v        # 需要 18 以上
+npx --yes wrangler@latest --version</code></pre>
+
+      <h3>2. 授权（只做一次）</h3>
+      <p>两种方式，<b>二选一</b>：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>方式</th><th>命令</th><th>适用</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>浏览器登录</td>
+              <td><code>npx wrangler@latest login</code></td>
+              <td>本机手工发布。会弹出浏览器让你点授权，凭据落在 <code>~/.wrangler/config/</code></td>
+            </tr>
+            <tr>
+              <td>API Token</td>
+              <td><code>set CLOUDFLARE_API_TOKEN=...</code></td>
+              <td>脚本 / CI / 无浏览器环境。Token 在 Cloudflare 面板 My Profile → API Tokens 建，权限给 <b>Cloudflare Pages:Edit</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <span class="t">Token 方式通常还要 Account ID</span>
+        <p>账号下有多个 Cloudflare 账户时必须显式指定，否则会报「More than one account available」：</p>
+        <pre><code>set CLOUDFLARE_ACCOUNT_ID=你的账户ID
+rem ID 就在面板地址栏 dashboard.cloudflare.com/&lt;这一段就是&gt;/...</code></pre>
+      </div>
+
+      <h3>3. 发布</h3>
+      <pre><code>npx --yes wrangler@latest pages deploy D:\c\opsmonitor-web --project-name opsmonitor-docs</code></pre>
+      <p>输出里会打印本次的 <b>Deployment ID</b> 和一个预览域名（形如
+      <code>https://&lt;hash&gt;.opsmonitor-docs.pages.dev</code>），正式地址始终是
+      <code>https://opsmonitor-docs.pages.dev</code>。</p>
+
+      <div class="callout tip">
+        <span class="t">本机有现成脚本</span>
+        <p><code>D:\c\publish-web-cf.bat</code> 把上面三步包好了，双击即可：目录和项目名都写死在脚本头部，
+        换目录或换项目名改那两行 <code>set "SITE="</code> / <code>set "PROJECT="</code>。</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">项目名不要随手改</span>
+        <p><code>opsmonitor-docs</code> 是沿用下来的项目名，改了等于新建一个站点，
+        <code>https://opsmonitor-docs.pages.dev</code> 这个已发出去的地址就停更了。
+        Strix 是本项目的新名字，但<b>项目名和域名保持不动</b>，只改页面里的文案。</p>
+      </div>
+
+      <h3>4. 回滚 / 看历史</h3>
+      <pre><code># 列出最近几次发布
+npx wrangler@latest pages deployment list --project-name opsmonitor-docs
+
+# 把某个旧版本重新设为生产（用上一步拿到的 Deployment ID）
+npx wrangler@latest pages deployment create opsmonitor-docs --deployment-id &lt;ID&gt;</code></pre>
+      <p>其实最省事的回滚在网页端：Cloudflare 面板 → Workers &amp; Pages → 项目 →
+      Deployments 列表，任意一条右侧 <b>⋯ → Rollback to this deployment</b>。</p>
+
+      <h2>路线二：GitHub Pages</h2>
+
+      <h3>1. 站点目录本身要是一个仓库</h3>
+      <p>注意本站目录和 Strix 主仓库<b>是两个独立仓库</b>，不要混。首次初始化：</p>
+      <pre><code>cd D:\c\opsmonitor-web
+git init -b main
+git add .
+git commit -m "docs: Strix 部署教程 1.2.2"
+
+# 远程仓库先在 GitHub 网页上建好（空仓库，不要勾 README）
+git remote add origin https://github.com/&lt;用户&gt;/&lt;仓库&gt;.git
+git push -u origin main</code></pre>
+
+      <h3>2. 页面已经带了工作流</h3>
+      <p>仓库里的 <code>.github/workflows/pages.yml</code> 就是把<b>仓库根目录</b>整个发上去
+      （artwork 取 <code>'.'</code>，因为 <code>index.html</code> 就在根上）。不用改，除非你要把它挪进子目录。</p>
+      <pre><code>name: Deploy static site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.'
+      - id: deployment
+        uses: actions/deploy-pages@v4</code></pre>
+
+      <h3>3. 打开 Pages 开关（关键一步，不做就一直 404）</h3>
+      <p>仓库 <b>Settings → Pages → Build and deployment → Source</b> 选 <b>GitHub Actions</b>。
+      选完之后 push 到 <code>main</code> 就会自动发布，Actions 标签页能看到进度。</p>
+      <div class="callout">
+        <span class="t">不想用 Actions 也行</span>
+        <p>Source 选 <b>Deploy from a branch</b> → 分支 <code>main</code> → 目录 <code>/(root)</code>，
+        同样能发。区别是这种做法不需要 <code>pages.yml</code>，但它不会帮你做
+        <code>configure-pages</code> 那套环境检查，出问题日志也不好读。</p>
+      </div>
+
+      <h3>4. 地址与子路径</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>仓库名</th><th>访问地址</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;用户&gt;.github.io</code></td><td><code>https://&lt;用户&gt;.github.io/</code></td><td>根路径，一个账号只能有一个</td></tr>
+            <tr><td>任意名字，如 <code>strix-docs</code></td><td><code>https://&lt;用户&gt;.github.io/strix-docs/</code></td><td>有子路径前缀，本站相对路径已适配</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="t">别在页面里写绝对路径</span>
+        <p>子路径部署时 <code>href="/assets/style.css"</code> 会指向
+        <code>https://&lt;用户&gt;.github.io/assets/style.css</code>（少了仓库名）→ 全站样式失效。
+        改页面时保持 <code>assets/...</code>、<code>linux.html</code> 这种相对写法。</p>
+      </div>
+
+      <h3>5. 绑定自定义域名（可选）</h3>
+      <p>仓库 Settings → Pages → Custom domain 填域名，GitHub 会往仓库根写一个 <code>CNAME</code> 文件；
+      同时到 DNS 加 <code>CNAME</code> 记录指向 <code>&lt;用户&gt;.github.io</code>。
+      证书签发要等几分钟到半小时，<b>期间强制 HTTPS 会失败</b>，等证书好了再勾。</p>
+
+      <h2>常见问题</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>发布成功了，打开还是旧内容</td>
+              <td>CDN / 浏览器缓存</td>
+              <td>先 <b>Ctrl+F5</b> 强刷；仍旧就开无痕窗口验证，再不行看 Deployments 里最新那条是不是你以为的那一次</td>
+            </tr>
+            <tr>
+              <td>GitHub 上 push 完没动静</td>
+              <td>Pages 的 Source 没选 GitHub Actions</td>
+              <td>Settings → Pages 改 Source；或 Actions 里手工 <b>Run workflow</b>（<code>workflow_dispatch</code> 已开）</td>
+            </tr>
+            <tr>
+              <td>整站没样式、图标全丢</td>
+              <td>用了绝对路径 <code>/assets/...</code></td>
+              <td>改成相对路径；子路径部署必然踩这个</td>
+            </tr>
+            <tr>
+              <td>某个页面 404</td>
+              <td>文件名大小写不一致（Linux 上区分大小写，Windows 不区分）</td>
+              <td>本地能开、线上 404 基本都是这个，检查 <code>href</code> 里的大小写</td>
+            </tr>
+            <tr>
+              <td>导航栏图标显示成方块</td>
+              <td>系统缺该 emoji 字体</td>
+              <td>换更通用的符号（本站已把 🪟 换成 🖥，就是这个原因）</td>
+            </tr>
+            <tr>
+              <td><code>wrangler</code> 报 More than one account</td>
+              <td>Token 对应的账户不唯一</td>
+              <td>设 <code>CLOUDFLARE_ACCOUNT_ID</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>发布前自检清单</h2>
+      <div class="grid c2">
+        <div class="card">
+          <div class="c-ico">🔍</div>
+          <h3>内容一致性</h3>
+          <p>页脚版本号 = <code>internal/version/version.go</code> 里的版本；
+          产物表里的文件名和 <code>release/&lt;版本&gt;/</code> 实际文件逐一对应。</p>
+        </div>
+        <div class="card">
+          <div class="c-ico">🚫</div>
+          <h3>无残留旧标识</h3>
+          <p>全站搜一遍旧品牌名与旧环境变量前缀，应为 0 处。
+          改完记得统一存成 LF，别让编辑器写成 CRLF。</p>
+        </div>
+        <div class="card">
+          <div class="c-ico">🔗</div>
+          <h3>链接可达</h3>
+          <p>逐页点一遍侧栏与正文内链，本地起静态服务验证，别用 <code>file://</code>。</p>
+          </div>
+        <div class="card">
+          <div class="c-ico">📱</div>
+          <h3>不横向溢出</h3>
+          <p>1280 宽下 <code>document.scrollWidth</code> 不应超过 <code>clientWidth</code>；
+          宽表格都套在 <code>.table-wrap</code> 里。</p>
+        </div>
+      </div>
+
+      <pre><code># 全站自查（在站点目录执行）
+grep -rn "opsmonitor" *.html assets/site.js     # 期望：无输出
+grep -c "1.2.2" assets/site.js                  # 页脚版本
+ls *.html | wc -l                               # 页面数量，增删页面时同步改 site.js 的 NAV</code></pre>
+
+      <div class="callout danger">
+        <span class="t">新增页面别忘了两处</span>
+        <p>① <code>assets/site.js</code> 的 <code>NAV</code> 数组里加一项，否则侧栏点不到；
+        ② 相邻页面的 <code>.pager</code> 前后链接顺手改一下，不然「下一页」会跳回首页。</p>
+      </div>
+
+      <div class="pager">
+        <a class="prev" href="troubleshoot.html">
+          <span class="lbl">上一页</span><b>← 排障手册</b>
+        </a>
+        <a class="next" href="index.html">
+          <span class="lbl">回到开头</span><b>项目概览 →</b>
+        </a>
+      </div>
+
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>

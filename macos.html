@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>macOS 部署 · Strix 部署教程</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-title="macOS">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" id="menu-toggle" aria-label="菜单">☰</button>
+      <span class="crumb" id="crumb"></span>
+      <span class="spacer"></span>
+      <button class="menu-toggle" id="theme-toggle" aria-label="切换主题">🌙</button>
+    </header>
+
+    <div class="content">
+      <h1>🍎 macOS 部署</h1>
+      <p class="lead">支持 macOS 11 (Big Sur) 及以上，Intel 与 Apple 芯片（M 系列）都支持，脚本会自动挑对二进制。</p>
+
+      <h2>芯片（Intel / Apple）怎么选</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th><code>uname -m</code></th><th>芯片</th><th>产物</th></tr></thead>
+          <tbody>
+            <tr><td><code>x86_64</code></td><td>Intel（Core i5/i7/i9、Xeon）</td><td><code>strix-server-darwin-amd64</code><br><code>strix-agent-darwin-amd64</code></td></tr>
+            <tr><td><code>arm64</code></td><td>Apple M1 / M2 / M3 / M4</td><td><code>strix-server-darwin-arm64</code><br><code>strix-agent-darwin-arm64</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="t">方向是单向的</span>
+        <p>Apple 芯片跑 <code>amd64</code> 版本有 Rosetta 2 兜底，能跑但多一层翻译；
+        <b>反过来 Intel Mac 跑 <code>arm64</code> 版本完全跑不起来</b>，系统会提示
+        <code>Bad CPU type in executable</code>。</p>
+      </div>
+      <p>安装脚本会自己 <code>uname -m</code> 后去同目录找对应文件，所以两个文件都拷过去最省事；
+      只拷一个也行，指定 <code>-f</code> 路径即可。</p>
+
+      <h2>快速开始</h2>
+      <pre><code># 把二进制和 deploy/macos 目录一起拷到 Mac（二进制会自动按芯片挑）
+cd deploy/macos
+chmod +x install.sh
+sudo ./install.sh</code></pre>
+      <p>脚本会自动：</p>
+      <ol class="steps">
+        <li><code>uname -m</code> 判断芯片 → Intel 用 <code>strix-server-darwin-amd64</code>，M 系列用 <code>-arm64</code></li>
+        <li>装到 <code>/usr/local/strix/strix-server</code></li>
+        <li>生成配置 <code>/usr/local/etc/strix/strix.env</code>（权限 600）</li>
+        <li>注册 launchd 守护 <code>com.strix.server</code>（开机自启 + 崩溃自动拉起）</li>
+        <li>若系统防火墙开着，自动为本程序放行入站</li>
+        <li>打印<b>只显示一次</b>的控制台账号与通信密钥</li>
+      </ol>
+
+      <div class="callout tip">
+        <span class="t">为什么用 launchd 而不是 nohup</span>
+        <p>macOS 上只有 launchd 托管的进程才能可靠地开机自启并自动重启。</p>
+      </div>
+
+      <h2>常用参数</h2>
+      <pre><code>sudo ./install.sh -f ./strix-server-darwin-arm64   # 指定二进制
+sudo ./install.sh --addr :8000                          # 换端口
+sudo ./install.sh --token '你的密钥' --admin-pass '你的密码'
+sudo ./install.sh --public-url http://10.0.0.5:9999
+sudo ./install.sh --uninstall                           # 卸载（保留数据）</code></pre>
+
+      <h2>目录规划</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>路径</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>/usr/local/strix/strix-server</code></td><td>主程序</td></tr>
+            <tr><td><code>/usr/local/strix/start-server.sh</code></td><td>launchd 调用的包装脚本（加载配置后 exec 主程序）</td></tr>
+            <tr><td><code>/usr/local/strix/data/strix.db</code></td><td>SQLite 数据库</td></tr>
+            <tr><td><code>/usr/local/strix/logs/server.log</code></td><td>程序日志</td></tr>
+            <tr><td><code>/usr/local/etc/strix/strix.env</code></td><td>配置（权限 600）</td></tr>
+            <tr><td><code>/Library/LaunchDaemons/com.strix.server.plist</code></td><td>launchd 单元</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>日常运维</h2>
+      <pre><code># 日志
+tail -f /usr/local/strix/logs/server.log
+
+# 状态
+sudo launchctl print system/com.strix.server | head -20
+
+# 重启 / 停止 / 启动
+sudo launchctl kickstart -k system/com.strix.server
+sudo launchctl bootout system/com.strix.server
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.strix.server.plist
+
+# 临时禁用开机自启（不禁用当前运行）
+sudo launchctl disable system/com.strix.server</code></pre>
+
+      <h2>手工部署（不用脚本）</h2>
+      <pre><code>sudo mkdir -p /usr/local/strix/{data,logs} /usr/local/etc/strix
+sudo install -m 0755 strix-server-darwin-arm64 /usr/local/strix/strix-server
+sudo cp ../linux/strix.env.example /usr/local/etc/strix/strix.env
+sudo vi /usr/local/etc/strix/strix.env     # 改 STRIX_TOKEN / STRIX_ADMIN_PASS
+sudo chmod 600 /usr/local/etc/strix/strix.env
+
+# 包装脚本：launchd 不读环境文件，必须先 source 再 exec
+cat &gt; /usr/local/strix/start-server.sh &lt;&lt;'EOF'
+#!/bin/sh
+set -a; [ -f /usr/local/etc/strix/strix.env ] &amp;&amp; . /usr/local/etc/strix/strix.env; set +a
+exec /usr/local/strix/strix-server
+EOF
+sudo chmod 755 /usr/local/strix/start-server.sh
+
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.strix.server.plist</code></pre>
+
+      <h2>常见排障</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>现象</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td>提示「无法打开，因为 Apple 无法检查其是否包含恶意软件」</td><td>二进制是自行编译未签名的：<code>sudo xattr -dr com.apple.quarantine /usr/local/strix/strix-server</code></td></tr>
+            <tr><td><code>launchctl bootstrap</code> 报 <code>Bootstrap failed: 5</code></td><td>单元文件语法或权限问题：确认属主 <code>root:wheel</code>、权限 644；先 <code>bootout</code> 再重试</td></tr>
+            <tr><td>服务反复重启</td><td>看 <code>logs/server.log</code>；常见是端口占用或数据目录权限</td></tr>
+            <tr><td>别的机器打不开页面</td><td>系统设置 → 网络 → 防火墙，确认本程序已允许传入连接</td></tr>
+            <tr><td>Apple 芯片误用 Intel 版</td><td>报 <code>Bad CPU type in executable</code>。换 <code>darwin-arm64</code> 重新执行</td></tr>
+            <tr><td>启动日志指纹不是 <code>278D-4852-7191-E7CE</code></td><td>二进制不是本版本产物</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <a href="windows.html"><span class="lbl">上一页</span><b>← Windows</b></a>
+        <a class="next" href="docker.html"><span class="lbl">下一页</span><b>Docker →</b></a>
+      </div>
+    </div>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+  </div>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>
