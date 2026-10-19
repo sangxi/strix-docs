@@ -37,7 +37,7 @@
         <table>
           <thead><tr><th>维度</th><th>Cloudflare Pages</th><th>GitHub Pages</th></tr></thead>
           <tbody>
-            <tr><td>当前地址</td><td><code>https://opsmonitor-docs.pages.dev</code></td><td>需先建仓库，地址为 <code>https://&lt;用户&gt;.github.io/&lt;仓库&gt;/</code></td></tr>
+            <tr><td>当前地址</td><td><code>https://opsmonitor-docs.pages.dev</code></td><td><code>https://sangxi.github.io/strix-docs/</code></td></tr>
             <tr><td>发布方式</td><td>本地一条 <code>wrangler</code> 命令（推）</td><td>push 到 <code>main</code> 后由 Actions 自动跑（拉）</td></tr>
             <tr><td>要不要 git</td><td>不需要</td><td>必须，且要推到 GitHub</td></tr>
             <tr><td>要不要账号</td><td>Cloudflare 账号 + 一次浏览器授权</td><td>已有 GitHub 账号即可</td></tr>
@@ -125,22 +125,40 @@ npx --yes wrangler@latest pages deploy /tmp/site --project-name opsmonitor-docs 
       <code>https://&lt;hash&gt;.opsmonitor-docs.pages.dev</code>），正式地址始终是
       <code>https://opsmonitor-docs.pages.dev</code>。</p>
 
+      <div class="callout danger">
+        <span class="t">必须显式加 --branch production ★最容易踩的坑★</span>
+        <p>站点目录<b>一旦变成 git 仓库</b>，wrangler 的默认分支不再是 production，而是读当前
+        git 分支名。于是同一条命令会被发到 <b>Preview 环境</b>：命令成功、给了个
+        <code>&lt;hash&gt;.opsmonitor-docs.pages.dev</code> 预览地址，但
+        <code>opsmonitor-docs.pages.dev</code> 一直是旧内容 —— 看起来像「发布没生效」，其实是发错环境了。</p>
+        <pre><code>npx --yes wrangler@latest pages deploy /tmp/site \
+  --project-name opsmonitor-docs \
+  --branch production --commit-dirty=true</code></pre>
+        <p>判据：<code>pages deployment list</code> 里 Environment 一栏，写着 <b>Preview</b> 就是发错了，
+        写着 <b>Production</b> 才是正式站。</p>
+      </div>
+
       <div class="callout tip">
         <span class="t">本机有现成脚本</span>
-        <p><code>D:\c\publish-web-cf.bat</code> 把上面三步包好了，双击即可：它会先查工作区是否干净、
-        再 <code>git archive</code> 到 <code>%TEMP%\strix-docs-stage</code>、最后发布那个暂存目录。
+        <p><code>D:\c\publish-web-cf.bat</code> 把上面几步包好了，双击即可：它先查工作区是否干净、
+        再 <code>git archive</code> 导出到 <code>%TEMP%\strix-docs-stage</code>，
+        最后带 <code>--branch production</code> 发那个暂存目录。
         目录、项目名都写死在脚本头部，要换改那两行 <code>set "SITE="</code> / <code>set "PROJECT="</code>。</p>
       </div>
 
       <div class="callout warn">
-        <span class="t">已经发错了怎么补救</span>
-        <p>Pages 的每次部署都是一份不可变快照，重新发一次<b>只会替换正式域名</b>，旧快照仍然挂在
-        <code>&lt;hash&gt;.项目名.pages.dev</code> 上。确认新部署干净后，把旧的那次删掉：</p>
+        <span class="t">发错了怎么补救</span>
+        <p>Pages 的每次部署都是一份不可变快照，重新发一次<b>只把正式域名指向新快照</b>，
+        旧快照仍然挂在 <code>&lt;hash&gt;.项目名.pages.dev</code> 上公开可访问。确认新部署干净后，
+        把带脏文件的那几次删掉（有别名要加 <code>-f</code>）：</p>
         <pre><code>npx wrangler@latest pages deployment list --project-name opsmonitor-docs
-npx wrangler@latest pages deployment delete &lt;旧Deployment ID&gt; --project-name opsmonitor-docs</code></pre>
-        <p>然后抽查几个不该存在的路径，全部应当 <b>404</b>：</p>
-        <pre><code>curl -o /dev/null -w "%{http_code}\n" https://opsmonitor-docs.pages.dev/.wrangler/cache/wrangler-account.json
-curl -o /dev/null -w "%{http_code}\n" https://opsmonitor-docs.pages.dev/.git/config</code></pre>
+npx wrangler@latest pages deployment delete &lt;Deployment ID&gt; --project-name opsmonitor-docs -f</code></pre>
+        <p>核对是否真的干净，<b>别只看状态码</b> —— 这个站没配 <code>404.html</code>，
+        任何不存在的路径都会回落成首页并返回 <code>200</code>。要看 <code>Content-Type</code>：</p>
+        <pre><code>curl -s -o /dev/null -w "%{content_type}\n" \
+  https://opsmonitor-docs.pages.dev/.wrangler/cache/wrangler-account.json
+# 返回 text/html   -> 该路径不存在（回落首页），安全
+# 返回 application/json -> 真的泄露了，删部署重发</code></pre>
       </div>
 
       <div class="callout warn">
@@ -162,14 +180,15 @@ npx wrangler@latest pages deployment create opsmonitor-docs --deployment-id &lt;
       <h2>路线二：GitHub Pages</h2>
 
       <h3>1. 站点目录本身要是一个仓库</h3>
-      <p>注意本站目录和 Strix 主仓库<b>是两个独立仓库</b>，不要混。首次初始化：</p>
+      <p>本站和 Strix 主仓库（<code>sangxi/Strix</code>）是<b>两个独立仓库</b>，不要混。
+      本站对应 <code>sangxi/strix-docs</code>，仓库里只有 html / css / js / 截图。
+      首次初始化（已做过一次，换机器或重建时照抄）：</p>
       <pre><code>cd D:\c\opsmonitor-web
 git init -b main
 git add .
 git commit -m "docs: Strix 部署教程 1.2.2"
 
-# 远程仓库先在 GitHub 网页上建好（空仓库，不要勾 README）
-git remote add origin https://github.com/&lt;用户&gt;/&lt;仓库&gt;.git
+git remote add origin https://github.com/sangxi/strix-docs.git
 git push -u origin main</code></pre>
 
       <h3>2. 页面已经带了工作流</h3>
@@ -222,7 +241,7 @@ jobs:
           <thead><tr><th>仓库名</th><th>访问地址</th><th>说明</th></tr></thead>
           <tbody>
             <tr><td><code>&lt;用户&gt;.github.io</code></td><td><code>https://&lt;用户&gt;.github.io/</code></td><td>根路径，一个账号只能有一个</td></tr>
-            <tr><td>任意名字，如 <code>strix-docs</code></td><td><code>https://&lt;用户&gt;.github.io/strix-docs/</code></td><td>有子路径前缀，本站相对路径已适配</td></tr>
+            <tr><td><code>strix-docs</code>（本站）</td><td><code>https://sangxi.github.io/strix-docs/</code></td><td>有 <code>/strix-docs/</code> 子路径前缀，本站相对路径已适配</td></tr>
           </tbody>
         </table>
       </div>
@@ -244,9 +263,14 @@ jobs:
           <thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
           <tbody>
             <tr>
-              <td>发布成功了，打开还是旧内容</td>
+              <td>命令成功，正式地址还是旧内容</td>
+              <td>发到 Preview 环境了（目录是 git 仓库时默认读分支名）</td>
+              <td>加 <code>--branch production</code> 重发；用 <code>pages deployment list</code> 看 Environment 一栏</td>
+            </tr>
+            <tr>
+              <td>换了内容但看起来没变</td>
               <td>CDN / 浏览器缓存</td>
-              <td>先 <b>Ctrl+F5</b> 强刷；仍旧就开无痕窗口验证，再不行看 Deployments 里最新那条是不是你以为的那一次</td>
+              <td>先 <b>Ctrl+F5</b> 强刷；再开无痕窗口验证</td>
             </tr>
             <tr>
               <td>GitHub 上 push 完没动静</td>
@@ -259,9 +283,9 @@ jobs:
               <td>改成相对路径；子路径部署必然踩这个</td>
             </tr>
             <tr>
-              <td>某个页面 404</td>
-              <td>文件名大小写不一致（Linux 上区分大小写，Windows 不区分）</td>
-              <td>本地能开、线上 404 基本都是这个，检查 <code>href</code> 里的大小写</td>
+              <td>点某个链接跑回首页</td>
+              <td>文件名大小写不一致（Linux 区分大小写，Windows 不区分）</td>
+              <td>本站没配 <code>404.html</code>，错路径会回落成首页而不是报错，最容易误判成「能打开」</td>
             </tr>
             <tr>
               <td>导航栏图标显示成方块</td>
