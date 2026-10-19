@@ -100,15 +100,47 @@ rem ID 就在面板地址栏 dashboard.cloudflare.com/&lt;这一段就是&gt;/..
       </div>
 
       <h3>3. 发布</h3>
-      <pre><code>npx --yes wrangler@latest pages deploy D:\c\opsmonitor-web --project-name opsmonitor-docs</code></pre>
+      <div class="callout danger">
+        <span class="t">别把站点目录直接丢给 wrangler</span>
+        <p>wrangler 上传的是<b>整个目录</b>，包括隐藏文件。站点目录一旦 <code>git init</code> 过，
+        <code>.git/</code>、<code>.wrangler/</code>、<code>.github/</code> 都会被发布到公网 —— 别人可以
+        直接下载 <code>https://&lt;站点&gt;/.wrangler/cache/wrangler-account.json</code> 看到你的
+        Cloudflare 账户 ID，甚至打包走整个 git 历史。正确做法是先导出一份<b>只含页面</b>的干净目录：</p>
+        <pre><code># 1) 先确认工作区干净，发布的内容才和 git 对得上
+cd D:\c\opsmonitor-web
+git status --short
+
+# 2) 导出干净目录（.gitattributes 里的 export-ignore 会顺带剔除 .github/.gitignore）
+rm -rf /tmp/site &amp;&amp; mkdir -p /tmp/site
+git archive --format=tar HEAD | tar -x -C /tmp/site
+
+# 3) 只发这个暂存目录
+npx --yes wrangler@latest pages deploy /tmp/site --project-name opsmonitor-docs --commit-dirty=true</code></pre>
+        <p>仓库里的 <code>.gitattributes</code> 就干这件事，别删：</p>
+        <pre><code>.github       export-ignore
+.gitignore    export-ignore
+.gitattributes export-ignore</code></pre>
+      </div>
       <p>输出里会打印本次的 <b>Deployment ID</b> 和一个预览域名（形如
       <code>https://&lt;hash&gt;.opsmonitor-docs.pages.dev</code>），正式地址始终是
       <code>https://opsmonitor-docs.pages.dev</code>。</p>
 
       <div class="callout tip">
         <span class="t">本机有现成脚本</span>
-        <p><code>D:\c\publish-web-cf.bat</code> 把上面三步包好了，双击即可：目录和项目名都写死在脚本头部，
-        换目录或换项目名改那两行 <code>set "SITE="</code> / <code>set "PROJECT="</code>。</p>
+        <p><code>D:\c\publish-web-cf.bat</code> 把上面三步包好了，双击即可：它会先查工作区是否干净、
+        再 <code>git archive</code> 到 <code>%TEMP%\strix-docs-stage</code>、最后发布那个暂存目录。
+        目录、项目名都写死在脚本头部，要换改那两行 <code>set "SITE="</code> / <code>set "PROJECT="</code>。</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="t">已经发错了怎么补救</span>
+        <p>Pages 的每次部署都是一份不可变快照，重新发一次<b>只会替换正式域名</b>，旧快照仍然挂在
+        <code>&lt;hash&gt;.项目名.pages.dev</code> 上。确认新部署干净后，把旧的那次删掉：</p>
+        <pre><code>npx wrangler@latest pages deployment list --project-name opsmonitor-docs
+npx wrangler@latest pages deployment delete &lt;旧Deployment ID&gt; --project-name opsmonitor-docs</code></pre>
+        <p>然后抽查几个不该存在的路径，全部应当 <b>404</b>：</p>
+        <pre><code>curl -o /dev/null -w "%{http_code}\n" https://opsmonitor-docs.pages.dev/.wrangler/cache/wrangler-account.json
+curl -o /dev/null -w "%{http_code}\n" https://opsmonitor-docs.pages.dev/.git/config</code></pre>
       </div>
 
       <div class="callout warn">
