@@ -62,15 +62,23 @@
             <tr><td rowspan="2">macOS</td><td>amd64</td><td><code>strix-agent-darwin-amd64</code></td><td>Intel Mac</td></tr>
             <tr><td>arm64</td><td><code>strix-agent-darwin-arm64</code></td><td>Apple M 系列</td></tr>
             <tr><td rowspan="2">Windows</td><td>amd64</td><td><code>strix-agent-windows-amd64.exe</code></td><td>Win10/11、Server 2016+</td></tr>
-            <tr><td>amd64</td><td><code>strix-agent-windows-amd64-win7.exe</code></td><td>Win7 SP1 / Server 2008 R2（旧系统专用）</td></tr>
+            <tr><td>amd64</td><td><code>strix-agent-windows-amd64-win7.exe</code></td><td>Win7 SP1 / 8 / 8.1、Server 2008 R2 / 2012 / 2012 R2（旧系统兼容版）</td></tr>
           </tbody>
         </table>
       </div>
       <div class="callout warn">
-        <span class="t">旧系统专用版有两个强制要求</span>
-        <p>Win7 / Server 2008 R2 必须用 <code>-win7.exe</code>：普通版在这些系统上会<b>闪退且不写日志</b>。
-        另外启动参数一定要带 <code>-remote-config off -update off</code> —— 平台下发的升级策略是全局默认
-        <code>auto</code>，否则它会在 30 分钟内把自己换成普通版，然后接着闪退。</p>
+        <span class="t">旧系统必须用兼容版，且它需要先在平台上登记一次</span>
+        <p>Win7 / 8.1 / Server 2008 R2 / 2012 / 2012 R2 上普通版会<b>闪退且不写日志</b>
+        （Go 1.21 起最低要求 Win10 / Server 2016，崩在 runtime 初始化，早于任何业务日志），必须用
+        <code>-win7.exe</code> 兼容版。</p>
+        <p><b>1.2.3 起它有了独立发布通道</b>：控制台「版本发布」→「采集端发布物（本地上传）」，
+        填<b>与正式版相同的版本号</b>、勾选「旧系统兼容版」上传一次。两份产物并存、各有各的「最新」标记，
+        互不覆盖。兼容版自报身份（<code>legacy=1</code>），查版本与自升级都只拿兼容版，
+        所以<b>不再需要</b> <code>-remote-config off -update off</code>（1.2.2 及更早仍需，否则 30 分钟内
+        会被自动升级换成普通版，接着闪退）。</p>
+        <p>安装脚本会自动判断：<code>[Environment]::OSVersion.Version.Major &lt; 10</code> 即认定旧系统并去取兼容版。
+        Win7 / 2008 R2 只有 PowerShell 2.0，用 <code>schtasks.exe</code> 注册开机自启，细节见
+        <a href="windows.html">Windows 部署</a>页末专章。</p>
       </div>
 
       <h2>方式二：手工运行采集端</h2>
@@ -139,7 +147,7 @@
         <a class="next" href="config.html"><span class="lbl">下一页</span><b>配置项清单 →</b></a>
       </div>
     </div>
-    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.3 · Apache-2.0 · 支持离线浏览</footer>
   </div>
 </div>
 <script src="assets/site.js"></script>

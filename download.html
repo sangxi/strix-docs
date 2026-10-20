@@ -47,7 +47,7 @@
             <tr><td>macOS</td><td>amd64</td><td><code>strix-agent-darwin-amd64</code></td><td>Intel 芯片 Mac</td></tr>
             <tr><td>macOS</td><td>arm64</td><td><code>strix-agent-darwin-arm64</code></td><td>Apple M 系列</td></tr>
             <tr><td>Windows</td><td>amd64</td><td><code>strix-agent-windows-amd64.exe</code></td><td>Win10/11、Server 2016+</td></tr>
-            <tr><td>Windows</td><td>amd64<br><span style="color:#d97706">（旧系统版）</span></td><td><code>strix-agent-windows-amd64-win7.exe</code></td><td>Win7 / Server 2008 R2</td></tr>
+            <tr><td>Windows</td><td>amd64<br><span style="color:#d97706">（旧系统版）</span></td><td><code>strix-agent-windows-amd64-win7.exe</code></td><td>Win7 / 8 / 8.1、Server 2008 R2 / 2012 / 2012 R2</td></tr>
           </tbody>
         </table>
       </div>
@@ -90,8 +90,11 @@
             <code>Exec format error</code>，请换 64 位系统（<code>aarch64</code>），而不是找 <code>arm</code> 版本 —— 没有这个版本。</li>
         <li><b>Windows 只有 amd64。</b>没有 <code>arm64</code> 与 <code>386</code> 产物。Windows on ARM 需要走 x64 模拟层运行，
             生产环境不建议。</li>
-        <li><b>Win7 / Server 2008 R2 用了普通版。</b>会<b>闪退且不留日志</b>。必须用 <code>-win7.exe</code> 兼容版，
-            并且启动参数要带 <code>-remote-config off -update off</code>，否则平台下发的自动升级会在 30 分钟内把它换回普通版，接着闪退。</li>
+        <li><b>Win7 / 8.1 / Server 2008 R2 / 2012 / 2012 R2 用了普通版。</b>会<b>闪退且不留日志</b>
+            （崩在 runtime 初始化，早于任何业务日志）。必须用 <code>-win7.exe</code> 兼容版。
+            1.2.3 起它有了独立发布通道：控制台「版本发布」里用<b>同一版本号</b>、勾选「旧系统兼容版」上传一次，
+            正式版与兼容版并存；兼容版会自报身份（<code>legacy=1</code>），自动升级只会拿到兼容版，
+            <b>不再需要</b> <code>-remote-config off -update off</code>（1.2.2 及更早仍需）。</li>
         <li><b>Intel Mac 装了 arm64。</b>Apple Silicon 机器跑 amd64 有 Rosetta 2 兜底（能跑），反过来 Intel 机器跑 arm64
             <b>完全跑不起来</b>，会提示 <code>Bad CPU type in executable</code>。</li>
         <li><b>看发行版选文件。</b>Linux 产物是<b>纯静态链接</b>的，不看发行版、不看 glibc 版本 —— Debian、CentOS 7、
@@ -100,17 +103,23 @@
 
       <h2>拿到文件后先做两件事</h2>
       <pre><code># 1) 校验完整性（同一目录下需要有 SHA256SUMS.txt）
-sha256sum -c SHA256SUMS.txt
+sha256sum -c SHA256SUMS.txt          # 应全部 OK
 
 # 2) 确认版本与架构自报正确（不启动服务，只打印信息）
 chmod +x strix-server-linux-amd64
 ./strix-server-linux-amd64 -version
-# strix-server 1.2.2 (linux/amd64) 构建于 2026-10-18T11:34:27</code></pre>
+# strix-server 1.2.3 (linux/amd64) 构建于 2026-10-20T17:51:46
+
+# 旧系统兼容版会多印一个身份标记
+./strix-agent-windows-amd64-win7.exe -version
+# strix-agent 1.2.3 (windows/amd64) 旧系统兼容版 构建于 2026-10-20T17:52:22</code></pre>
       <div class="callout warn">
         <span class="t">-version 自报的架构要和文件名一致</span>
         <p>不一致说明文件被改名错了（有人把 arm64 的文件改成 amd64 名字），装上去只会得到一个
         <code>Exec format error</code>。发布包里的 <code>SHA256SUMS.txt</code> 与 <code>RELEASE-MANIFEST.md</code>
         会列出全部产物，可以对着核。</p>
+        <p><b>校验和报 FAILED 时先别怀疑文件</b>：确认 <code>SHA256SUMS.txt</code> 的版本与产物版本一致
+        （1.2.3 的包配 1.2.2 的校验和列表，会 11/11 全红，这比没有校验和更误导）。</p>
       </div>
 
       <div class="pager">
@@ -118,7 +127,7 @@ chmod +x strix-server-linux-amd64
         <a class="next" href="agent.html"><span class="lbl">下一页</span><b>接入采集端 →</b></a>
       </div>
     </div>
-    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.3 · Apache-2.0 · 支持离线浏览</footer>
   </div>
 </div>
 <script src="assets/site.js"></script>

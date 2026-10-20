@@ -186,7 +186,7 @@ npx wrangler@latest pages deployment create opsmonitor-docs --deployment-id &lt;
       <pre><code>cd D:\c\opsmonitor-web
 git init -b main
 git add .
-git commit -m "docs: Strix 部署教程 1.2.2"
+git commit -m "docs: Strix 部署教程 1.2.3"
 
 git remote add origin https://github.com/sangxi/strix-docs.git
 git push -u origin main</code></pre>
@@ -330,7 +330,7 @@ jobs:
 
       <pre><code># 全站自查（在站点目录执行）
 grep -rn "opsmonitor" *.html assets/site.js     # 期望：无输出
-grep -c "1.2.2" assets/site.js                  # 页脚版本
+grep -c "1.2.3" assets/site.js                  # 页脚版本
 ls *.html | wc -l                               # 页面数量，增删页面时同步改 site.js 的 NAV</code></pre>
 
       <div class="callout danger">
@@ -349,7 +349,7 @@ ls *.html | wc -l                               # 页面数量，增删页面时
       </div>
 
     </div>
-    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.3 · Apache-2.0 · 支持离线浏览</footer>
   </div>
 </div>
 <script src="assets/site.js"></script>

@@ -52,22 +52,22 @@ docker buildx version                             # 有输出说明 BuildKit/bui
         <p>不会传 <code>TARGETARCH</code>，Dockerfile 里会退回默认值 <code>amd64</code>。
         这类环境在 arm64 机器上要显式指定（命令在 <code>deploy/docker</code> 里执行，上下文是仓库根 <code>..</code>）：</p>
         <pre><code>docker build -f Dockerfile.binary \
-  --build-arg VERSION=1.2.2 --build-arg TARGETARCH=arm64 \
-  -t strix/strix-server:1.2.2 ..
+  --build-arg VERSION=1.2.3 --build-arg TARGETARCH=arm64 \
+  -t strix/strix-server:1.2.3 ..
 # 或者直接用源码构建（按构建机架构出镜像）：
-docker build -f Dockerfile --build-arg VERSION=1.2.2 -t strix/strix-server:1.2.2 ..</code></pre>
+docker build -f Dockerfile --build-arg VERSION=1.2.3 -t strix/strix-server:1.2.3 ..</code></pre>
       </div>
       <p>想在 Intel 上构建一个 arm64 镜像（拿到 ARM 服务器上跑），用 buildx 交叉构建：</p>
       <pre><code>docker buildx build --platform linux/arm64 \
-  -f deploy/docker/Dockerfile.binary --build-arg VERSION=1.2.2 \
-  -t strix/strix-server:1.2.2 --load .</code></pre>
+  -f deploy/docker/Dockerfile.binary --build-arg VERSION=1.2.3 \
+  -t strix/strix-server:1.2.3 --load .</code></pre>
 
       <h2>两种构建方式</h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>方式</th><th>Dockerfile</th><th>特点</th></tr></thead>
           <tbody>
-            <tr><td>用现成二进制</td><td><code>Dockerfile.binary</code></td><td>不用 Go 环境、不用联网拉模块，几十秒出镜像。依赖仓库里已有 <code>release/1.2.2/strix-server-linux-amd64</code>（或 <code>-arm64</code>）</td></tr>
+            <tr><td>用现成二进制</td><td><code>Dockerfile.binary</code></td><td>不用 Go 环境、不用联网拉模块，几十秒出镜像。依赖仓库里已有 <code>release/1.2.3/strix-server-linux-amd64</code>（或 <code>-arm64</code>）</td></tr>
             <tr><td>从源码构建</td><td><code>Dockerfile</code></td><td>适合 GitHub 用户 / CI，需要能拉取 Go 模块；产物是<b>构建机架构</b>的原生镜像</td></tr>
           </tbody>
         </table>
@@ -154,7 +154,7 @@ docker compose exec strix-server wget -qO- http://127.0.0.1:9999/api/health   # 
         <table>
           <thead><tr><th>现象</th><th>处理</th></tr></thead>
           <tbody>
-            <tr><td>找不到 <code>release/1.2.2/...</code></td><td>构建上下文不对，必须在仓库根目录执行，或 <code>docker compose -f deploy/docker/docker-compose.yml --project-directory . build</code>；也可能是该版本还没生成 <code>release/1.2.2/</code>（<code>ls release/</code> 确认）</td></tr>
+            <tr><td>找不到 <code>release/1.2.3/...</code></td><td>构建上下文不对，必须在仓库根目录执行，或 <code>docker compose -f deploy/docker/docker-compose.yml --project-directory . build</code>；也可能是该版本还没生成 <code>release/1.2.3/</code>（<code>ls release/</code> 确认）</td></tr>
             <tr><td><code>exec format error</code> / 容器反复重启</td><td>镜像架构与宿主机不一致。arm64 机器上要确保 <code>TARGETARCH=arm64</code>，或改用源码构建</td></tr>
             <tr><td>架构对但特别慢</td><td>很可能在 QEMU 模拟下跑（amd64 镜像跑在 arm64 宿主）。用上面的 <code>-version</code> 命令看括号里的架构是否为宿主架构</td></tr>
             <tr><td>容器起来就退出</td><td><code>docker compose logs</code> 看日志；常见是 <code>/data</code> 挂载点权限或端口占用</td></tr>
@@ -171,7 +171,7 @@ docker compose exec strix-server wget -qO- http://127.0.0.1:9999/api/health   # 
         <a class="next" href="config.html"><span class="lbl">下一页</span><b>配置项清单 →</b></a>
       </div>
     </div>
-    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.3 · Apache-2.0 · 支持离线浏览</footer>
   </div>
 </div>
 <script src="assets/site.js"></script>

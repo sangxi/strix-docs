@@ -117,7 +117,10 @@ grep -i 指纹 /usr/local/strix/logs/server.log</code></pre>
             <tr><td>主机显示「离线」</td><td>默认 180 秒未上报即离线（<code>STRIX_OFFLINE_SEC</code>）；检查采集端进程与网络</td></tr>
             <tr><td>采集端不自动升级</td><td>远端登记过同版本号产物时，同号主机不触发升级 → <b>改内容必须改版本号</b></td></tr>
             <tr><td>目标主机安装提示「授权系统尚未发布该平台」</td><td>1.1.1 起采集端发布物已按 5 个平台（linux/amd64、linux/arm64、darwin/amd64、darwin/arm64、windows/amd64）逐个补拉修复；若仍出现，确认监控端版本 ≥ 1.1.1 且能正常访问授权中心</td></tr>
-            <tr><td><b>Windows 7 / Server 2008 R2</b> 上采集端双击后闪退、没有窗口也没有日志</td><td>Go 1.21.5 起 runtime 的随机数源依赖 Windows 8 才有的 <code>bcryptprimitives.dll</code>，旧系统上进程在 runtime 初始化阶段直接退出（早于任何业务日志）。改用专用兼容产物 <code>strix-agent-windows-amd64-win7.exe</code>，并<b>必须</b>加启动参数 <code>-remote-config off -update off</code> —— 否则它会在 30 分钟内被平台下发的更新策略换成普通版，又闪退</td></tr>
+            <tr><td><b>Windows 7 / 8 / 8.1、Server 2008 R2 / 2012 / 2012 R2</b> 上采集端双击后闪退、没有窗口也没有日志</td><td>Go 1.21.5 起 runtime 的随机数源从 <code>RtlGenRandom</code> 换成了 <code>ProcessPrng</code>，后者来自 <code>bcryptprimitives.dll</code> —— Win7 / 2008 R2 上根本没这个 DLL，函数指针是 NULL，一调用就 <code>0xc0000005</code>；Go 1.21+ 还砍掉了 <code>WSASocket</code> / <code>LoadLibraryEx</code> 的旧系统回退。崩在 runtime 初始化阶段，早于任何业务日志。改用兼容产物 <code>strix-agent-windows-amd64-win7.exe</code>（Go 1.20.14 构建）。<b>1.2.3 起</b>：控制台「版本发布」用同一版本号、勾选「旧系统兼容版」上传一次即可，正式版与兼容版并存；兼容版自报 <code>legacy=1</code>，自动升级只拿兼容版，<b>不再需要</b> <code>-remote-config off -update off</code>（1.2.2 及更早仍需）</td></tr>
+            <tr><td>一键安装报「尚未发布该平台的『旧系统兼容版』采集端」</td><td>平台只有正式版记录。到控制台「版本发布」→「采集端发布物（本地上传）」，填<b>与正式版相同的版本号</b>、选 Windows / amd64、勾选「旧系统兼容版」上传一次；两份产物并存互不覆盖</td></tr>
+            <tr><td>授权中心同步报「HTTP 502（网关错误）」</td><td><b>不是 <code>-hub</code> 地址写错</b>：请求已经到达反向代理/CDN，但它没能从上游的授权中心拿到应答。按顺序查四处：① 授权中心进程是否在跑 ② <code>proxy_pass</code> 端口是否与中心监听端口一致 ③ 上游是 HTTPS 时是否加了 <code>proxy_ssl_server_name on;</code> ④ 中心侧日志有没有收到这条请求。「在线升级」页会打印响应页面标题、<code>Server</code> 头与脱敏后的请求 URL，据此判断卡在哪一层</td></tr>
+            <tr><td>授权中心同步报「返回的是网页，说明地址落到了静态站点上」</td><td>这才是 <code>-hub</code> 指到了站点首页而不是接口。<code>-hub</code> 只写到域名（可带子路径），形如 <code>https://域名</code>；<code>/api/v1/check</code> 由程序自己拼，误填了这个后缀会被自动削掉</td></tr>
           </tbody>
         </table>
       </div>
@@ -172,7 +175,7 @@ grep -i 指纹 /usr/local/strix/logs/server.log</code></pre>
         <a class="next" href="publish.html"><span class="lbl">下一页</span><b>发布与托管 →</b></a>
       </div>
     </div>
-    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.3 · Apache-2.0 · 支持离线浏览</footer>
   </div>
 </div>
 <script src="assets/site.js"></script>

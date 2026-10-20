@@ -49,7 +49,7 @@
       html += '</div>';
     });
     html += '<div class="side-foot">' +
-              '版本 1.2.2 · Apache-2.0<br>' +
+              '版本 1.2.3 · Apache-2.0<br>' +
               '<a href="index.html">教程首页</a> · ' +
               '<a href="https://github.com/sangxi/Strix" target="_blank" rel="noreferrer">GitHub 仓库</a>' +
             '</div>';

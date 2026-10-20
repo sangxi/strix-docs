@@ -20,7 +20,7 @@
 
     <div class="content">
       <h1>🖥 Windows 部署</h1>
-      <p class="lead">支持 64 位 Windows 10 / 11、Windows Server 2016 及以上（工具链下限为 Windows 8 / Server 2012）。原生计划任务实现开机自启，无需 NSSM 等第三方工具。Windows 7 SP1 / Server 2008 R2 等旧系统的采集端方案见文末说明。</p>
+      <p class="lead">支持 64 位 Windows 10 / 11、Windows Server 2016 及以上；Windows 7 SP1 / 8 / 8.1、Server 2008 R2 / 2012 / 2012 R2 等旧系统请用<b>旧系统兼容版采集端</b>（见文末专章）。原生计划任务实现开机自启，无需 NSSM 等第三方工具。</p>
 
       <h2>架构：Windows 只有 amd64 一种</h2>
       <div class="table-wrap">
@@ -28,7 +28,7 @@
           <thead><tr><th>系统</th><th>产物</th><th>说明</th></tr></thead>
           <tbody>
             <tr><td>Win10 / 11、Server 2016+</td><td><code>strix-server-windows-amd64.exe</code><br><code>strix-agent-windows-amd64.exe</code></td><td>标准版，推荐</td></tr>
-            <tr><td>Win7 SP1 / Server 2008 R2</td><td>仅采集端：<code>strix-agent-windows-amd64-win7.exe</code></td><td>需额外启动参数，见文末</td></tr>
+            <tr><td>Win7 SP1 / 8 / 8.1、Server 2008 R2 / 2012 / 2012 R2</td><td>监控端：无可用产物<br>采集端：<code>strix-agent-windows-amd64-win7.exe</code></td><td>旧系统兼容版，1.2.3 起有独立发布通道，见文末</td></tr>
             <tr><td>Windows on ARM</td><td>无原生产物</td><td>只能靠 x64 模拟层跑标准版，生产不建议</td></tr>
             <tr><td>32 位 Windows</td><td>无产物</td><td>请换 64 位系统</td></tr>
           </tbody>
@@ -122,15 +122,78 @@ New-NetFirewallRule -DisplayName 'Strix' -Direction Inbound -Action Allow -Proto
         </table>
       </div>
 
+      <h2>旧系统兼容版（Win7 / 8.1 / Server 2008 R2 / 2012 / 2012 R2）</h2>
+
+      <p><b>为什么正式版在这些系统上跑不起来</b>：Go 1.21 起编译出来的程序<b>最低要求 Windows 10 / Server 2016</b>，
+      官方把 Win7 / 8 / 8.1、Server 2008 R2 / 2012 / 2012 R2 全部列为不再支持。具体崩法有三个：</p>
+      <ul>
+        <li>随机数源从 <code>RtlGenRandom</code> 换成了 <code>ProcessPrng</code>，后者来自
+          <code>bcryptprimitives.dll</code> —— Win7 / 2008 R2 上根本没有这个 DLL，函数指针是 NULL，一调用就 <code>0xc0000005</code></li>
+        <li>砍掉了 <code>WSASocket</code> 的旧系统回退，没有 <code>WSASocketW</code> 的机器直接失败</li>
+        <li>砍掉了 <code>LoadLibraryEx</code> 的旧回退与旧版控制台句柄处理</li>
+      </ul>
+      <p>因为它崩在 <b>runtime 初始化阶段</b>，早于任何一行业务日志，所以现象是
+      「双击后黑窗口一闪就没了，既没有报错框也没有日志」——这几乎总是这个原因，不是配置问题。</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>系统</th><th>用哪个采集端</th><th>一键安装脚本</th></tr></thead>
+          <tbody>
+            <tr><td>Windows 10 / 11、Server 2016 及以上</td><td><code>strix-agent-windows-amd64.exe</code></td><td>可以用</td></tr>
+            <tr><td>Server 2012 / 2012 R2</td><td rowspan="2"><code>strix-agent-windows-amd64-win7.exe</code><br>（Go 1.20.14 构建，自报「旧系统兼容版」）</td><td>可以用（自带 PowerShell 4.0）</td></tr>
+            <tr><td>Win7 SP1 / 8 / 8.1、Server 2008 R2</td><td>改用 <code>schtasks.exe</code> 手工注册，见下文</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>第 1 步：把兼容版登记到平台上</h3>
+      <p>授权系统那条线按「版本 + 平台 + 架构」只存<b>一份</b>产物，所以兼容版不走自动上传，
+      要在控制台里手工登记一次（1.2.3 起支持）：</p>
+      <ol class="steps">
+        <li><b>打开上传面板</b>控制台 →「在线升级」→「采集端发布物（本地上传）」</li>
+        <li><b>版本号填与正式版完全一致的号</b>系统选 <code>Windows</code>，架构选 <code>amd64</code></li>
+        <li><b>文件选兼容版产物</b><code>strix-agent-windows-amd64-win7.exe</code></li>
+        <li><b>勾选「旧系统兼容版」</b>然后点上传；不勾就会当成正式版，把原来那份覆盖掉</li>
+      </ol>
+      <p>上传后列表里会出现两行、同一个版本号，一行带「兼容版」徽标、一行带「正式版」徽标。
+      两份产物<b>并存互不覆盖</b>，各有各的「最新」标记。</p>
+
+      <h3>第 2 步：装到旧系统上</h3>
+      <p>1.2.3 起安装脚本会自己判断系统版本：读 <code>[Environment]::OSVersion.Version</code>，
+      <code>Major &lt; 10</code> 即认定旧系统，自动去要兼容版，并打印一行
+      「系统版本 6.3，属于旧版 Windows，将安装「旧系统兼容版」采集端」。直接跑就行：</p>
+      <pre><code>cd C:\你的目录\deploy\windows
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\install.ps1</code></pre>
+
+      <p><b>Win7 / Server 2008 R2 手工部署</b>（这两套系统只有 PowerShell 2.0，没有
+      <code>Register-ScheduledTask</code>，用系统自带的 <code>schtasks.exe</code>）：</p>
+      <pre><code># 1) 先确认二进制能在本机跑起来 —— 应打印「旧系统兼容版」
+strix-agent-windows-amd64-win7.exe -version
+
+# 2) 前台跑一次，确认能连上平台（Ctrl+C 退出）
+strix-agent-windows-amd64-win7.exe -server http://你的监控端IP:9999 -token 你的通信密钥 -name 主机名
+
+# 3) 注册开机自启（schtasks 是 cmd 命令，PowerShell 里直接这样一行跑；
+#    不要用 ^ 续行，那是 cmd 的写法，PowerShell 不认）
+schtasks /Create /TN strix-agent /SC ONSTART /RU SYSTEM /RL HIGHEST /F /TR "C:\Strix\strix-agent.exe -server http://你的监控端IP:9999 -token 你的通信密钥 -name 主机名"
+
+# 4) 启动
+schtasks /Run /TN strix-agent</code></pre>
+
+      <div class="callout tip">
+        <span class="t">1.2.3 起不再需要 -remote-config off -update off</span>
+        <p>兼容版里注入了身份标记（<code>version.LegacyWindows</code>），查版本和自升级时都会带
+        <code>&amp;legacy=1</code>，平台因此<b>只回兼容版</b>。所以「自动升级把它换回正式版、换完又闪退」
+        这条路从协议上被堵死了。</p>
+        <p>仍在跑 <b>1.2.2 及更早</b>兼容版的老机器：先升到 1.2.3 的兼容版，升级成功后就能把
+        <code>-remote-config off -update off</code> 两个参数撤掉。</p>
+      </div>
+
       <div class="callout warn">
-        <span class="t">Windows 7 SP1 / Server 2008 R2 等旧系统</span>
-        <p><b>监控端</b>：旧版系统缺少现代 PowerShell 命令（<code>Register-ScheduledTask</code> 等），
-           建议改用 Docker 或 Linux 方式部署。</p>
-        <p><b>采集端</b>：可用专用兼容产物 <code>strix-agent-windows-amd64-win7.exe</code>
-           （用 Go 1.20 单独构建，随 release 一并提供）。启动参数<b>必须</b>带
-           <code>-remote-config off -update off</code>，否则会在 30 分钟内被平台下发的更新策略
-           换成普通版而无法运行；开机自启用系统自带的 <code>schtasks.exe</code> 注册
-           （旧系统没有 <code>Register-ScheduledTask</code>）。</p>
+        <span class="t">监控端仍然不要装在旧系统上</span>
+        <p>上面说的兼容版<b>只针对采集端</b>。监控端（<code>strix-server</code>）只提供 Win10 / Server 2016+ 的产物，
+        旧系统上请改用 Linux 服务器或 Docker 部署，把采集端留在旧机器上即可。</p>
       </div>
 
       <div class="pager">
@@ -138,7 +201,7 @@ New-NetFirewallRule -DisplayName 'Strix' -Direction Inbound -Action Allow -Proto
         <a class="next" href="macos.html"><span class="lbl">下一页</span><b>macOS →</b></a>
       </div>
     </div>
-    <footer class="foot">Strix 部署教程 · 版本 1.2.2 · Apache-2.0 · 支持离线浏览</footer>
+    <footer class="foot">Strix 部署教程 · 版本 1.2.3 · Apache-2.0 · 支持离线浏览</footer>
   </div>
 </div>
 <script src="assets/site.js"></script>
